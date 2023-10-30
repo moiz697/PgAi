@@ -1,9 +1,7 @@
-# PostgreSQL Extension Makefile for PgAi
-
+EXTENSION = PgAi
 MODULE_big = PgAi
-OBJS = PgAi.o  # Replace with the list of your object files
-
+DATA = PgAi-1.0.sql
+OBJS = PgAi.o 
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
-
