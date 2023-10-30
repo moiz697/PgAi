@@ -1,4 +1,4 @@
-comment = 'PgAi Extension'
-default_version = '1.0'
-module_pathname = '$libdir/PgAi'
-
+comment = 'PostgreSQL Utility Command Logger
+'default_version = '1.0'
+relocatable = true
+module_pathname = '$libdir/log'
