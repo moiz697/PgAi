@@ -78,7 +78,24 @@ void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 
 Datum pgai_hello(PG_FUNCTION_ARGS)
 {
-    PG_RETURN_TEXT_P(cstring_to_text("Hello World"));
+    text *result;
+
+    /* Your custom code goes here, e.g., running a SQL query */
+    SPI_connect();
+
+    /* Execute a SQL query to load data from a CSV file into your_table */
+    int ret = SPI_exec("COPY stock_data FROM '/Users/mustafakhattak/Downloads/archive/all_stocks_5yr.csv' WITH CSV HEADER;", 0);
+
+    if (ret < 0) {
+        elog(ERROR, "Error executing COPY command: %s", SPI_result_code_string(ret));
+    }
+
+    SPI_finish();
+
+    /* Return a text result */
+    result = cstring_to_text("Hello World");
+
+    PG_RETURN_TEXT_P(result);
 }
 
 Datum pgai_loading_data(PG_FUNCTION_ARGS)
@@ -103,5 +120,6 @@ Datum pgai_loading_data(PG_FUNCTION_ARGS)
         ereport(ERROR, (errmsg("Failed to create the table")));
 
     SPI_finish();
+    Datum helloResult = DirectFunctionCall1(pgai_hello, (Datum) 0);
     PG_RETURN_NULL();
 }
