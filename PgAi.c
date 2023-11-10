@@ -1,34 +1,26 @@
-
 #include "postgres.h"
-
-#include <math.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
-#include "access/parallel.h"
-#include "catalog/pg_authid.h"
-#include "common/hashfn.h"
-#include "executor/instrument.h"
-#include "funcapi.h"
-#include "mb/pg_wchar.h"
-#include "miscadmin.h"
-#include "optimizer/planner.h"
-#include "parser/analyze.h"
-#include "parser/parsetree.h"
-#include "parser/scanner.h"
-#include "parser/scansup.h"
-#include "pgstat.h"
-#include "storage/fd.h"
-#include "storage/ipc.h"
-#include "storage/lwlock.h"
-#include "storage/shmem.h"
-#include "storage/spin.h"
-#include "tcop/utility.h"
+#include "access/htup_details.h"
+#include "access/sysattr.h"
+#include "access/xact.h"
+#include "catalog/heap.h"
+#include "catalog/pg_type.h"
+#include "commands/trigger.h"
+#include "executor/executor.h"
+#include "utils/rel.h"
+#include "utils/snapmgr.h"
+#include "utils/syscache.h"
+#include "utils/typcache.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
-#include "utils/queryjumble.h"
+#include "access/printtup.h"
+#include "executor/spi.h"
+#include "tcop/pquery.h"
+#include "tcop/utility.h"
+#include "utils/datum.h"
+#include "utils/lsyscache.h"
 #include "utils/memutils.h"
-#include "utils/timestamp.h"
+#include "utils/queryjumble.h"
+
 
 PG_MODULE_MAGIC;
 
@@ -36,10 +28,12 @@ PG_MODULE_MAGIC;
 
 void _PG_init(void);
 void _PG_fini(void);
-Datum pg_all_queries(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(pg_all_queries);
 
+PG_FUNCTION_INFO_V1(pgai_hello);
+PG_FUNCTION_INFO_V1(pgai_loading_data);
+Datum hello(PG_FUNCTION_ARGS);
 
+Datum loading_data(PG_FUNCTION_ARGS);
 static ProcessUtility_hook_type prev_ProcessUtility = NULL;
 
 static void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
@@ -82,4 +76,32 @@ void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
     /* ... C code here ... */
 }
 
+Datum pgai_hello(PG_FUNCTION_ARGS)
+{
+    PG_RETURN_TEXT_P(cstring_to_text("Hello World"));
+}
 
+Datum pgai_loading_data(PG_FUNCTION_ARGS)
+{
+    
+  if (SPI_connect() != SPI_OK_CONNECT)
+        ereport(ERROR, (errmsg("Failed to connect to SPI")));
+
+    // Define the SQL statement to create the table
+    const char *createTableSQL = 
+        "CREATE TABLE stock_data ("
+        "    date DATE,"
+        "    open NUMERIC,"
+        "    high NUMERIC,"
+        "    low NUMERIC,"
+        "    close NUMERIC,"
+        "    volume BIGINT,"
+        "    name VARCHAR(5)"
+        ");";
+
+    if (SPI_exec(createTableSQL, 0) != SPI_OK_UTILITY)
+        ereport(ERROR, (errmsg("Failed to create the table")));
+
+    SPI_finish();
+    PG_RETURN_NULL();
+}
