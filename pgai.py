@@ -54,7 +54,7 @@ def load_and_prepare_data(connection):
     engine = create_engine(f'postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
 
     # Rest of the function remains unchanged
-    sql_query = "SELECT * FROM stock_data"
+    sql_query = "SELECT * FROM stock_data_AAL"
     df = pd.read_sql_query(sql_query, engine)
     df1 = df.reset_index()['close']
     date=df.reset_index()['date']

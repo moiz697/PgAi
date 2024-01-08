@@ -1,50 +1,48 @@
 import numpy as np
 import pandas as pd
-from datetime import datetime
 from tensorflow.keras.models import load_model
 from sklearn.preprocessing import MinMaxScaler
 
-def make_predictions(model_path, csv_file_path, input_date_str, sequence_length=100):
+# ... (previous code)
+
+def make_stock_predictions(model_path, csv_file_path, input_date_str, sequence_length=100):
     # Load the Keras model from the native Keras format file
     model = load_model(model_path)
 
     # Read your CSV file into a DataFrame
-    df = pd.read_csv(csv_file_path, parse_dates=['date'], dayfirst=True)  # Parse dates with day first
+    df = pd.read_csv(csv_file_path, parse_dates=['date'], dayfirst=True)
 
     # Parse input date
     input_date = pd.to_datetime(input_date_str, dayfirst=True)
 
-    # Ensure the sequence_length is defined
-    # sequence_length = 100  # Assuming your sequence length is 10 (adjust this based on your model)
+    # Find the index corresponding to the input date in CSV file
+    input_date_index_csv = np.where(df['date'] <= input_date)[0][-1]
 
-    # Extract the historical data up to the input date
-    historical_data = df[df['date'] <= input_date]
+    # Extract the historical data up to the input date from CSV file
+    start_index_csv = max(0, input_date_index_csv - sequence_length + 1)
+    data_to_predict_csv = df['close'].values[start_index_csv:input_date_index_csv + 1]
 
-    # Check if there is enough historical data for prediction
-    if len(historical_data) < sequence_length:
-        print(f"Not enough historical data for prediction.")
-    else:
-        # Extract the close values for prediction
-        data_to_predict = historical_data['close'].values[-sequence_length:]
+    # Reshape and preprocess the data for prediction in CSV file
+    scaler_csv = MinMaxScaler(feature_range=(0, 1))
+    data_to_predict_scaled_csv = scaler_csv.fit_transform(data_to_predict_csv.reshape(-1, 1))
 
-        # Reshape and preprocess the data for prediction
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        data_to_predict_scaled = scaler.fit_transform(data_to_predict.reshape(-1, 1))
+    # Ensure the input shape matches the model's expectations for CSV file
+    data_to_predict_scaled_csv = np.reshape(data_to_predict_scaled_csv, (1, sequence_length, 1))
 
-        # Ensure the input shape matches the model's expectations
-        data_to_predict_scaled = np.reshape(data_to_predict_scaled, (1, sequence_length, 1))
+    # Make predictions using the loaded model for CSV file
+    predictions_csv = model.predict(data_to_predict_scaled_csv)
 
-        # Make predictions using the loaded model
-        predictions = model.predict(data_to_predict_scaled)
+    # Inverse transform the predictions to get the original scale for CSV file
+    predicted_close_value_csv = scaler_csv.inverse_transform(predictions_csv.reshape(-1, 1))
 
-        # Inverse transform the predictions to get the original scale
-        predicted_close_value = scaler.inverse_transform(predictions.reshape(-1, 1))
+    print(f"Predicted Close Value from CSV for {input_date_str}: {predicted_close_value_csv[0, 0]:.2f}")
 
-        print(f"Predicted Close Value for {input_date_str}: {predicted_close_value[0, 0]}")
+# ... (rest of the code)
+
 
 # Example usage
-model_path = 'Save.keras'
-csv_file_path = '/Users/moizibrar/Downloads/MacroTrends_Data_Download_AAPL.csv'
-input_date_str = '30/12/2023'
+model_path = '/Users/moizibrar/Work/fyp/Save.keras'  # Replace with the path to your .keras file
+csv_file_path = '/Users/moizibrar/Downloads/archive/individual_stocks_5yr/individual_stocks_5yr/AAL_data.csv'  # Replace with the path to your CSV file
+input_date_str = '01/05/2025'  # Replace with the desired input date (MM/DD/YYYY)
 
-make_predictions(model_path, csv_file_path, input_date_str)
+make_stock_predictions(model_path, csv_file_path, input_date_str)

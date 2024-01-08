@@ -1,21 +1,40 @@
+import os
+from dotenv import load_dotenv
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import tkinter as tk
 from tkinter import Label, Entry, Button
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from sklearn .preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.layers import Dense, Dropout, LSTM
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.models import load_model
+from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
-from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping
+import psycopg2
 
-csv_file_path = '/Users/moizibrar/Downloads/MacroTrends_Data_Download_AAPL.csv'
+# Load environment variables from .env file
+load_dotenv()
 
-# Read the CSV file into a DataFrame
-df = pd.read_csv(csv_file_path)
+# Get database connection details from environment variables
+db_host = os.getenv("DB_HOST")
+db_port = os.getenv("DB_PORT")
+db_name = os.getenv("DB_NAME")
+db_user = os.getenv("DB_USER")
+db_password = os.getenv("DB_PASSWORD")
+
+# Create a PostgreSQL connection
+connection = psycopg2.connect(
+    host=db_host,
+    port=db_port,
+    database=db_name,
+    user=db_user,
+    password=db_password
+)
+
+# Execute a query to fetch data
+query = "SELECT * FROM stock_data_AAL"
+df = pd.read_sql(query, connection)
 
 # Convert the 'date' column to datetime with the correct format
 df['date'] = pd.to_datetime(df['date'], format='%d/%m/%Y')
@@ -85,8 +104,8 @@ plot_data()
 # Start Tkinter event loop
 root.mainloop()
 
-data_train = df['close'][0: int(len(df)*0.80)]
-data_test = df['close'][int(len(df)*0.80):] 
+data_train = df['close'][0: int(len(df)*0.60)]
+data_test = df['close'][int(len(df)*0.60):] 
 print(data_train)
 print(data_test)
 
@@ -119,15 +138,23 @@ def create_lstm_model(input_shape):
     model.add(LSTM(units=100, return_sequences=True, input_shape=input_shape))
     model.add(Dropout(0.2))  # Increased dropout rate
     
-    model.add(LSTM(units=50, return_sequences=True))
+    model.add(LSTM(units=80, return_sequences=True))
     model.add(Dropout(0.2))  # Increased dropout rate
     
-    model.add(LSTM(units=50))
+    model.add(LSTM(units=100, return_sequences=True))
     model.add(Dropout(0.2))  # Increased dropout rate
     
-    model.add(Dense(units=1, activation='relu'))
+    model.add(LSTM(units=100, return_sequences=True))
+    model.add(Dropout(0.3))  # Increased dropout rate
+    
+    model.add(LSTM(units=100))  # Additional LSTM layer
+    model.add(Dropout(0.3))  # Increased dropout rate
+    
+    model.add(Dense(units=1))
     
     return model
+
+    
 
 # Reshape x to be a 3D array
 x = np.reshape(x, (x.shape[0], x.shape[1], 1))
@@ -138,17 +165,19 @@ model.summary()
 
 # Compile the model
 optimizer = Adam(learning_rate=0.001)
-model.compile(optimizer=optimizer, loss='mean_squared_error')
+model.compile(optimizer='adam',loss='mean_squared_error')
+
+
 
 # Define callbacks
 callbacks = [
     ModelCheckpoint('Save.keras', save_best_only=True),
     TensorBoard(log_dir='./logs', histogram_freq=1),
-    EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+    EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)
 ]
 
 # Training the model
-history = model.fit(x, y, epochs=50, batch_size=34, verbose=1, validation_split=0.2, callbacks=callbacks)
+history = model.fit(x, y, epochs=100, batch_size=64, verbose=1, validation_split=0.5, callbacks=callbacks)
 
 # Plot training and validation loss
 plt.plot(history.history['loss'], label='Training Loss')
@@ -201,3 +230,4 @@ data_test=pd.concat([pass_100_days,data_test],ignore_index=True)
 print(data_test)
 
 
+connection.close()
