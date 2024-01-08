@@ -84,14 +84,22 @@ def create_dataset(dataset, time_step=100):
     return np.array(dataX), np.array(dataY)
 
 def create_and_train_model(x_train, y_train, x_test, y_test):
-    model = Sequential([
-        LSTM(50, return_sequences=True, input_shape=(100, 1)),
-        LSTM(50, return_sequences=True),
-        LSTM(50),
-        Dense(1)
-    ])
+    model = Sequential()
+    
+    model.add(LSTM(units=100, return_sequences=True, input_shape=(100, 1)))
+    model.add(Dropout(0.2))  # Increased dropout rate
+    
+    model.add(LSTM(units=50, return_sequences=True))
+    model.add(Dropout(0.2))  # Increased dropout rate
+    
+    model.add(LSTM(units=50))
+    model.add(Dropout(0.2))  # Increased dropout rate
+    
+    model.add(Dense(units=1, activation='relu'))
+    
     model.compile(loss='mean_squared_error', optimizer='adam')
     model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=1, batch_size=64, verbose=1)
+    
     # Save the model architecture and weights
     model.save("trained_model.h5")
 
@@ -119,21 +127,7 @@ def plot_original_vs_predicted(df1, train_predict, test_predict, scaler, dates):
     test_predict_plot[:, :] = np.nan
     test_predict_plot[len(train_predict) + (100 * 2) + 1:len(df1) - 1, :] = test_predict
 
-    # Plotting
-    plt.figure(figsize=(24, 12))
-    plt.title('Original vs Predicted Stock Prices')
-    plt.xlabel('Date')  # Use 'Date' instead of 'Time'
-    plt.ylabel('Stock Price')
-    plt.plot(dates, original_data, label='Original Data')
-    plt.plot(dates[100:len(train_predict) + 100], train_predict_plot[100:len(train_predict) + 100, :], label='Training Predictions')
-    plt.plot(dates[len(train_predict) + (100 * 2) + 1:len(df1) - 1], test_predict_plot[len(train_predict) + (100 * 2) + 1:len(df1) - 1, :], label='Testing Predictions')
-    plt.legend()
-    plt.show()
-
-    print("Plotting Original vs Predicted Stock Prices")
-    print("Blue line represents the original stock prices.")
-    print("Orange line represents the training data predictions.")
-    print("Green line represents the testing data predictions.")
+  
 
 
 

@@ -20,9 +20,16 @@
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/queryjumble.h"
-#include 'libpq-fe.h'
+
 #include "fmgr.h"
 #include "funcapi.h"
+#include "tcop/utility.h"
+#include "utils/acl.h"
+#include "utils/builtins.h"
+#include "utils/datum.h"
+#include "utils/lsyscache.h"
+#include "utils/memutils.h"
+#include "utils/queryjumble.h"
 PG_MODULE_MAGIC;
 
 
@@ -127,25 +134,3 @@ Datum pgai_loading_data(PG_FUNCTION_ARGS)
 }
 
 
-PG_FUNCTION_INFO_V1(exec_py_script);
-
-Datum
-exec_py_script(PG_FUNCTION_ARGS)
-{
-    char* script_path = PG_GETARG_CSTRING(0);
-
-    Py_Initialize();
-    FILE* file = fopen(script_path, "r");
-
-    if (file != NULL) {
-        PyRun_SimpleFile(file, script_path);
-        fclose(file);
-    } else {
-        ereport(ERROR,
-                (errcode(ERRCODE_EXTERNAL_ROUTINE_EXCEPTION),
-                 errmsg("Could not open Python script file")));
-    }
-
-    Py_Finalize();
-    PG_RETURN_VOID();
-}
