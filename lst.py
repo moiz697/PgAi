@@ -7,11 +7,12 @@ import tkinter as tk
 from tkinter import Label, Entry, Button
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.layers import Dense, Dropout, LSTM
+from tensorflow.keras.layers import Dense, Dropout, LSTM, Bidirectional
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping
 import psycopg2
+from sklearn.model_selection import KFold
 
 # Load environment variables from .env file
 load_dotenv()
@@ -46,7 +47,6 @@ df.dropna(inplace=True)
 # Calculate the 100-day and 200-day moving averages
 ma_100_days = close_column.rolling(window=100).mean()
 ma_200_days = close_column.rolling(window=200).mean()
-
 
 # Create a Tkinter window
 root = tk.Tk()
@@ -109,11 +109,10 @@ data_test = df['close'][int(len(df)*0.60):]
 print(data_train)
 print(data_test)
 
-
 data_train.shape[0]
 data_test.shape[0]
 
-scaler=MinMaxScaler(feature_range=(0,1))
+scaler = MinMaxScaler(feature_range=(0,1))
 # Reshape data_train and data_test before scaling
 data_train_scale = scaler.fit_transform(data_train.values.reshape(-1, 1))
 data_test_scale = scaler.transform(data_test.values.reshape(-1, 1))
@@ -130,54 +129,99 @@ x, y = np.array(x), np.array(y)
 # Reshape x to be a 3D array
 x = np.reshape(x, (x.shape[0], x.shape[1], 1))
 
-
-
-def create_lstm_model(input_shape):
+def create_bidirectional_lstm_model(input_shape):
     model = Sequential()
-    
-    model.add(LSTM(units=100, return_sequences=True, input_shape=input_shape))
-    model.add(Dropout(0.2))  # Increased dropout rate
-    
-    model.add(LSTM(units=80, return_sequences=True))
-    model.add(Dropout(0.2))  # Increased dropout rate
-    
-    model.add(LSTM(units=100, return_sequences=True))
-    model.add(Dropout(0.2))  # Increased dropout rate
-    
-    model.add(LSTM(units=100, return_sequences=True))
-    model.add(Dropout(0.3))  # Increased dropout rate
-    
-    model.add(LSTM(units=100))  # Additional LSTM layer
-    model.add(Dropout(0.3))  # Increased dropout rate
-    
+
+    # Use Bidirectional LSTM layers
+    model.add(Bidirectional(LSTM(units=100, return_sequences=True), input_shape=input_shape))
+    model.add(Dropout(0.2))
+
+    model.add(Bidirectional(LSTM(units=80, return_sequences=True)))
+    model.add(Dropout(0.2))
+
+    model.add(Bidirectional(LSTM(units=100, return_sequences=True)))
+    model.add(Dropout(0.2))
+
+    model.add(Bidirectional(LSTM(units=100, return_sequences=True)))
+    model.add(Dropout(0.3))
+
+    model.add(Bidirectional(LSTM(units=100)))
+    model.add(Dropout(0.3))
+
     model.add(Dense(units=1))
-    
+
     return model
 
-    
+# Assuming x and y are already defined
 
 # Reshape x to be a 3D array
 x = np.reshape(x, (x.shape[0], x.shape[1], 1))
 
-# Create the LSTM model
-model = create_lstm_model(input_shape=(x.shape[1], 1))
+# Create the Bidirectional LSTM model
+model = create_bidirectional_lstm_model(input_shape=(x.shape[1], 1))
 model.summary()
 
 # Compile the model
 optimizer = Adam(learning_rate=0.001)
-model.compile(optimizer='adam',loss='mean_squared_error')
-
-
+model.compile(optimizer=optimizer, loss='mean_squared_error')
 
 # Define callbacks
 callbacks = [
-    ModelCheckpoint('Save.keras', save_best_only=True),
-    TensorBoard(log_dir='./logs', histogram_freq=1),
+    ModelCheckpoint('.keras/bidirectional_lstm_model.h5', save_best_only=True),
+    TensorBoard(log_dir='./logs_bidirectional', histogram_freq=1),
     EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)
 ]
 
-# Training the model
-history = model.fit(x, y, epochs=100, batch_size=64, verbose=1, validation_split=0.5, callbacks=callbacks)
+# Define the k-fold cross-validation
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+fold = 1
+
+for train_index, test_index in kf.split(df):
+    train_data, test_data = df.iloc[train_index], df.iloc[test_index]
+    
+    data_train = train_data['close']
+    data_test = test_data['close']
+    
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    
+    # Reshape data_train and data_test before scaling
+    data_train_scale = scaler.fit_transform(data_train.values.reshape(-1, 1))
+    data_test_scale = scaler.transform(data_test.values.reshape(-1, 1))
+    
+    # Prepare the training data
+    x = []
+    y = []
+    for i in range(100, data_train_scale.shape[0]):
+        x.append(data_train_scale[i-100:i, 0])
+        y.append(data_train_scale[i, 0])
+
+    x, y = np.array(x), np.array(y)
+
+    # Reshape x to be a 3D array
+    x = np.reshape(x, (x.shape[0], x.shape[1], 1))
+
+    # Create the Bidirectional LSTM model
+    model = create_bidirectional_lstm_model(input_shape=(x.shape[1], 1))
+
+    # Compile the model
+    optimizer = Adam(learning_rate=0.001)
+    model.compile(optimizer=optimizer, loss='mean_squared_error')
+
+    # Define callbacks
+    callbacks = [
+        ModelCheckpoint(f'Save_bidirectional_fold_{fold}.keras', save_best_only=True),
+        TensorBoard(log_dir=f'./logs_bidirectional_fold_{fold}', histogram_freq=1),
+        EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)
+    ]
+
+    # Training the model with different parameters
+    history = model.fit(x, y, epochs=150, batch_size=128, verbose=1, validation_split=0.2, callbacks=callbacks)
+
+
+    fold += 1
+# Training the model with different parameters
+history = model.fit(x, y, epochs=150, batch_size=128, verbose=1, validation_split=0.2, callbacks=callbacks)
+
 
 # Plot training and validation loss
 plt.plot(history.history['loss'], label='Training Loss')
@@ -188,10 +232,13 @@ plt.ylabel('Loss')
 plt.legend()
 plt.show()
 
-model.save('Save.keras')
+# Save the trained Bidirectional LSTM model
+model.save('.keras/bidirectional_lstm_model.h5')
 
 # Load the saved model using Keras
-loaded_model = load_model('Save.keras')
+loaded_model = load_model('.keras/bidirectional_lstm_model.h5')
+
+
 # Use the same MinMaxScaler to scale the test data
 data_test_scale = scaler.transform(data_test.values.reshape(-1, 1))
 
@@ -213,21 +260,16 @@ predictions = loaded_model.predict(x_test)
 # Inverse transform the predictions to get the original scale
 predicted_values = scaler.inverse_transform(predictions.reshape(-1, 1))
 
-# Evaluate your model or do further analysis with the predictions and actual values
-# ...
-
-# Print the first few predictions for visualization
 print("Predicted Values:")
 print(predicted_values[:20])
 print("Actual Values:")
 print(data_test.values[:20])
 
-
-model.summary()
-
-pass_100_days=df.tail(100)
-data_test=pd.concat([pass_100_days,data_test],ignore_index=True)
+pass_100_days = df.tail(100)
+data_test = pd.concat([pass_100_days, data_test], ignore_index=True)
 print(data_test)
+
+
 
 
 connection.close()
