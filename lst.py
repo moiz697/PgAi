@@ -12,7 +12,6 @@ from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping
 import psycopg2
-from sklearn.model_selection import KFold
 
 # Load environment variables from .env file
 load_dotenv()
@@ -167,61 +166,13 @@ model.compile(optimizer=optimizer, loss='mean_squared_error')
 
 # Define callbacks
 callbacks = [
-    ModelCheckpoint('.keras/bidirectional_lstm_model.h5', save_best_only=True),
+    ModelCheckpoint('Save_bidirectional.keras', save_best_only=True),
     TensorBoard(log_dir='./logs_bidirectional', histogram_freq=1),
     EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)
 ]
 
-# Define the k-fold cross-validation
-kf = KFold(n_splits=5, shuffle=True, random_state=42)
-fold = 1
-
-for train_index, test_index in kf.split(df):
-    train_data, test_data = df.iloc[train_index], df.iloc[test_index]
-    
-    data_train = train_data['close']
-    data_test = test_data['close']
-    
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    
-    # Reshape data_train and data_test before scaling
-    data_train_scale = scaler.fit_transform(data_train.values.reshape(-1, 1))
-    data_test_scale = scaler.transform(data_test.values.reshape(-1, 1))
-    
-    # Prepare the training data
-    x = []
-    y = []
-    for i in range(100, data_train_scale.shape[0]):
-        x.append(data_train_scale[i-100:i, 0])
-        y.append(data_train_scale[i, 0])
-
-    x, y = np.array(x), np.array(y)
-
-    # Reshape x to be a 3D array
-    x = np.reshape(x, (x.shape[0], x.shape[1], 1))
-
-    # Create the Bidirectional LSTM model
-    model = create_bidirectional_lstm_model(input_shape=(x.shape[1], 1))
-
-    # Compile the model
-    optimizer = Adam(learning_rate=0.001)
-    model.compile(optimizer=optimizer, loss='mean_squared_error')
-
-    # Define callbacks
-    callbacks = [
-        ModelCheckpoint(f'Save_bidirectional_fold_{fold}.keras', save_best_only=True),
-        TensorBoard(log_dir=f'./logs_bidirectional_fold_{fold}', histogram_freq=1),
-        EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)
-    ]
-
-    # Training the model with different parameters
-    history = model.fit(x, y, epochs=150, batch_size=128, verbose=1, validation_split=0.2, callbacks=callbacks)
-
-
-    fold += 1
 # Training the model with different parameters
 history = model.fit(x, y, epochs=150, batch_size=128, verbose=1, validation_split=0.2, callbacks=callbacks)
-
 
 # Plot training and validation loss
 plt.plot(history.history['loss'], label='Training Loss')
@@ -232,12 +183,20 @@ plt.ylabel('Loss')
 plt.legend()
 plt.show()
 
-# Save the trained Bidirectional LSTM model
-model.save('.keras/bidirectional_lstm_model.h5')
+# Save the trained Bidirectional LSTM model in PostgreSQL
+model_name = "bidirectional_lstm_model"
+serialized_model = model.to_json()
+
+# Insert the serialized model into the database
+cursor = connection.cursor()
+cursor.execute("INSERT INTO ml_models (model_name, serialized_model) VALUES (%s, %s) RETURNING model_id;",
+               (model_name, serialized_model))
+model_id = cursor.fetchone()[0]
+connection.commit()
+cursor.close()
 
 # Load the saved model using Keras
-loaded_model = load_model('.keras/bidirectional_lstm_model.h5')
-
+loaded_model = load_model('Save_bidirectional.keras')
 
 # Use the same MinMaxScaler to scale the test data
 data_test_scale = scaler.transform(data_test.values.reshape(-1, 1))
@@ -260,6 +219,10 @@ predictions = loaded_model.predict(x_test)
 # Inverse transform the predictions to get the original scale
 predicted_values = scaler.inverse_transform(predictions.reshape(-1, 1))
 
+# Evaluate your model or do further analysis with the predictions and actual values
+# ...
+
+# Print the first few predictions for visualization
 print("Predicted Values:")
 print(predicted_values[:20])
 print("Actual Values:")
@@ -268,8 +231,5 @@ print(data_test.values[:20])
 pass_100_days = df.tail(100)
 data_test = pd.concat([pass_100_days, data_test], ignore_index=True)
 print(data_test)
-
-
-
 
 connection.close()

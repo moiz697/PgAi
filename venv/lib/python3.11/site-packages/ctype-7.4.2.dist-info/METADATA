@@ -1,0 +1,174 @@
+Metadata-Version: 2.1
+Name: ctype
+Version: 7.4.2
+Summary: Interact with cython, python, ctypes, and use other c/c++ tools
+Home-page: https://github.com/notepads/ctype
+Author: notepads
+Author-email: notepads.py@gmail.com
+License: MIT
+Keywords: ctype,ctypes,cython,cpython,cpy,python,c,c++
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Development Status :: 4 - Beta
+Classifier: Development Status :: 3 - Alpha
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: Development Status :: 1 - Planning
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development :: Libraries
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Scientific/Engineering :: Mathematics
+Classifier: Typing :: Typed
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+
+<a href="[https://ibb.co/r4RCDff](https://i.ibb.co/wMF95rr/ctype.png)"><img src="https://i.ibb.co/wMF95rr/ctype.png" alt="flowa" border="0" width="145"></a>
+
+# [ctype - Interact with cython, python, ctypes, and use other c/c++ tools](https://pypi.org/project/ctype/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/notepads-py/ctype/blob/main/LICENSE)
+[![Python Versions](https://img.shields.io/badge/python-3.7%20|%203.8%20|%203.9%20|%203.10%20|%203.11%20|%203.12%20-blue)](https://www.python.org/downloads/)
+
+```
+ctype: (V7.4.2)
+
+Interact with cython, python, ctypes, and use other c/c++ tools
+```
+
+## Installing
+```shell
+# Linux/macOS
+python3 pip install -U ctype
+
+# Windows
+py -3 -m pip install -U ctype
+```
+
+```python
+import ctype
+```
+```python
+# Base Classes
+ctype.CType         # Decorator Class
+ctype.Structure
+```
+```python
+ctype.uint
+ctype.uint4
+ctype.uint8
+ctype.uint16
+ctype.uint32
+ctype.uint64
+```
+```python
+ctype.ints
+ctype.int4
+ctype.int8
+ctype.int16
+ctype.int32
+ctype.int64
+```
+```python
+ctype.floats
+ctype.float4
+ctype.float8
+ctype.float16
+ctype.float32
+ctype.float64
+```
+```python
+ctype.double
+ctype.double4
+ctype.double8
+ctype.double16
+ctype.double32
+ctype.double64
+```
+```python
+ctype.long
+ctype.longlong
+ctype.short
+```
+```python
+ctype.ulong
+ctype.ulonglong
+ctype.ushort
+```
+```python
+ctype.char
+ctype.wchar
+ctype.chararray
+ctype.wchararray
+```
+```python
+ctype.struct
+ctype.union
+ctype.enum
+```
+```python
+ctype.typedef
+ctype.volatile
+```
+```python
+ctype.boolean
+```
+```python
+ctype.void
+```
+```python
+ctype.ptr
+```
+```python
+ctype.cout, ctype.stdout, ctype.printf
+ctype.cin, ctype.stdin
+ctype.cerr, ctype.stderr
+ctype.clog, ctype.log
+ctype.cexit, ctype.exit
+ctype.cabort, ctype.abort
+ctype.endl
+```
+```python
+# ctype.Exceptions
+ctype.ctype_err <cerr_type> <cobject> <cmessage>
+
+ctype.CTypeException
+ctype.CTypeRuntime
+ctype.CTypeIndex
+ctype.CTypeName
+ctype.CTypeImport
+ctype.CTypeAttr
+ctype.CTypeKey
+ctype.CTypeValue
+ctype.CTypeIndent
+ctype.CTypeError
+ctype.CTypeKeyboard
+ctype.CTypeUnfinished
+```
+# Use ctypes in ctype
+```python
+# Comes inside of the ctype lib
+
+from ctype import cdll, c_int, c_char_p, c_void_p, c_double, c_bool, ...
+```
+```python
+# View all defined CType's
+ctype.types
+
+# CType
+ctype.ctype
+ctype.CType
+
+# Structure
+ctype.Structure
+ctype.Struct
+ctype.structure
+```
+```python
+ctype.require('a_module', 'numpy', 'some_other_module')
+```
+
+# Links
+- [Github](https://github.com/notepads-ai)
+- [Project](https://pypi.org/project/ctype/)

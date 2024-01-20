@@ -10,7 +10,7 @@ from tkinter import Label, Entry, Button
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.layers import Dense, Dropout, LSTM, Bidirectional
-from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.models import Sequential, model_from_json  # Updated import
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping
 import psycopg2
@@ -42,13 +42,15 @@ cursor.execute(query, (model_name,))
 model_serialized = cursor.fetchone()[0]
 
 # Deserialize the model
-model_config = tf.keras.models.model_from_json(model_serialized)
+loaded_model = model_from_json(model_serialized)
+
+# Rest of your code...
+
 loaded_model = tf.keras.models.Sequential()
 
 for layer_config in model_config['config']['layers']:
     layer = tf.keras.layers.deserialize(layer_config, custom_objects={})
     loaded_model.add(layer)
-
 
 
 # Execute a query to fetch data
@@ -123,4 +125,3 @@ plot_data()
 # Start Tkinter event loop
 root.mainloop()
 
-# The rest of your code...

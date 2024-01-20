@@ -127,13 +127,6 @@ def plot_original_vs_predicted(df1, train_predict, test_predict, scaler, dates):
     test_predict_plot[:, :] = np.nan
     test_predict_plot[len(train_predict) + (100 * 2) + 1:len(df1) - 1, :] = test_predict
 
-  
-
-
-
-
-
-
 def calculate_rmse(y_true, y_pred):
     mse = mean_squared_error(y_true, y_pred)
     rmse = np.sqrt(mse)
