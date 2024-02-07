@@ -20,16 +20,9 @@
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/queryjumble.h"
-
+#include 'libpq-fe.h'
 #include "fmgr.h"
 #include "funcapi.h"
-#include "tcop/utility.h"
-#include "utils/acl.h"
-#include "utils/builtins.h"
-#include "utils/datum.h"
-#include "utils/lsyscache.h"
-#include "utils/memutils.h"
-#include "utils/queryjumble.h"
 PG_MODULE_MAGIC;
 
 
@@ -37,14 +30,12 @@ PG_MODULE_MAGIC;
 void _PG_init(void);
 void _PG_fini(void);
 
-PG_FUNCTION_INFO_V1(pgai_connect);
+PG_FUNCTION_INFO_V1(pgai_hello);
 PG_FUNCTION_INFO_V1(pgai_loading_data);
-Datum pgai_connect(PG_FUNCTION_ARGS);
+Datum hello(PG_FUNCTION_ARGS);
 extern Datum get_postgres_version(PG_FUNCTION_ARGS);
 Datum loading_data(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(call_python_script);
 PG_FUNCTION_INFO_V1(get_postgres_version);
-
 static ProcessUtility_hook_type prev_ProcessUtility = NULL;
 
 static void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
@@ -64,12 +55,9 @@ void _PG_init(void)
 
 void _PG_fini(void)
 {
-    /* Free any dynamically allocated memory */
-    if (my_allocated_memory != NULL) {
-        pfree(my_allocated_memory);
-        my_allocated_memory = NULL;
-    }
+    /* ... C code here at time of extension unloading ... */
 }
+
 void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 			 bool readOnlyTree,
 			 ProcessUtilityContext context,
@@ -90,15 +78,15 @@ void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
     /* ... C code here ... */
 }
 
-Datum pgai_connect(PG_FUNCTION_ARGS)
+Datum pgai_hello(PG_FUNCTION_ARGS)
 {
     text *result;
 
-
+    /* Your custom code goes here, e.g., running a SQL query */
     SPI_connect();
 
-    
-    int ret = SPI_exec("COPY stock_data FROM '/Users/moizibrar/Downloads/pgai/archive/individual_stocks_5yr/individual_stocks_5yr/ADSK_data.csv' WITH CSV HEADER;", 0);
+    /* Execute a SQL query to load data from a CSV file into your_table */
+    int ret = SPI_exec("COPY stock_data FROM '/Users/moizibrar/Downloads/AAPL-2.csv' WITH CSV HEADER;", 0);
 
     if (ret < 0) {
         elog(ERROR, "Error executing COPY command: %s", SPI_result_code_string(ret));
@@ -106,8 +94,8 @@ Datum pgai_connect(PG_FUNCTION_ARGS)
 
     SPI_finish();
 
-  
-    result = cstring_to_text("Connected");
+    /* Return a text result */
+    result = cstring_to_text("Hello World");
 
     PG_RETURN_TEXT_P(result);
 }
@@ -118,7 +106,7 @@ Datum pgai_loading_data(PG_FUNCTION_ARGS)
   if (SPI_connect() != SPI_OK_CONNECT)
         ereport(ERROR, (errmsg("Failed to connect to SPI")));
 
-
+    // Define the SQL statement to create the table
     const char *createTableSQL = 
         "CREATE TABLE stock_data ("
         "    date DATE,"
@@ -134,39 +122,30 @@ Datum pgai_loading_data(PG_FUNCTION_ARGS)
         ereport(ERROR, (errmsg("Failed to create the table")));
 
     SPI_finish();
-    Datum pgai_connect = DirectFunctionCall1(pgai_connect, (Datum) 0);
+    Datum helloResult = DirectFunctionCall1(pgai_hello, (Datum) 0);
     PG_RETURN_NULL();
 }
 
 
-Datum call_python_script(PG_FUNCTION_ARGS) {
-    // Check if the path parameter is provided
-    if (PG_ARGISNULL(0)) {
-        ereport(ERROR, (errmsg("Path to Python script is required")));
-        PG_RETURN_NULL();
+PG_FUNCTION_INFO_V1(exec_py_script);
+
+Datum
+exec_py_script(PG_FUNCTION_ARGS)
+{
+    char* script_path = PG_GETARG_CSTRING(0);
+
+    Py_Initialize();
+    FILE* file = fopen(script_path, "r");
+
+    if (file != NULL) {
+        PyRun_SimpleFile(file, script_path);
+        fclose(file);
+    } else {
+        ereport(ERROR,
+                (errcode(ERRCODE_EXTERNAL_ROUTINE_EXCEPTION),
+                 errmsg("Could not open Python script file")));
     }
 
-    // Get the path parameter
-    text *path_text = PG_GETARG_TEXT_P(0);
-    char *path = text_to_cstring(path_text);
-
-    // Connect to SPI
-    if (SPI_connect() != SPI_OK_CONNECT) {
-        ereport(ERROR, (errmsg("Failed to connect to SPI")));
-        PG_RETURN_NULL();
-    }
-
-    // Execute the PL/Python function with the provided script path
-    char query[256];
-    snprintf(query, sizeof(query), "SELECT run_python_script('%s');", path);
-
-    int ret = SPI_exec(query, 0);
-    if (ret < 0) {
-        elog(ERROR, "Error executing PL/Python function: %s", SPI_result_code_string(ret));
-    }
-
-    // Disconnect from SPI
-    SPI_finish();
-
-    PG_RETURN_NULL();
+    Py_Finalize();
+    PG_RETURN_VOID();
 }

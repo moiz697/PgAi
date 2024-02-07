@@ -1,127 +1,48 @@
-import tensorflow as tf
-from io import BytesIO
-import os
-from dotenv import load_dotenv
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import tkinter as tk
-from tkinter import Label, Entry, Button
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from tensorflow.keras.models import load_model
 from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.layers import Dense, Dropout, LSTM, Bidirectional
-from tensorflow.keras.models import Sequential, model_from_json  # Updated import
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping
-import psycopg2
 
-# Load environment variables from .env file
-load_dotenv()
+# ... (previous code)
 
-# Get database connection details from environment variables
-db_host = os.getenv("DB_HOST")
-db_port = os.getenv("DB_PORT")
-db_name = os.getenv("DB_NAME")
-db_user = os.getenv("DB_USER")
-db_password = os.getenv("DB_PASSWORD")
-model_table = os.getenv("MODEL_TABLE")
-model_name = os.getenv("MODEL_NAME")
+def make_stock_predictions(model_path, csv_file_path, input_date_str, sequence_length=100):
+    # Load the Keras model from the native Keras format file
+    model = load_model(model_path)
 
-# Create a PostgreSQL connection
-connection = psycopg2.connect(
-    host=db_host,
-    port=db_port,
-    database=db_name,
-    user=db_user,
-    password=db_password
-)
+    # Read your CSV file into a DataFrame
+    df = pd.read_csv(csv_file_path, parse_dates=['date'], dayfirst=True)
 
-query = f"SELECT serialized_model FROM {model_table} WHERE model_name = %s;"
-cursor = connection.cursor()
-cursor.execute(query, (model_name,))
-model_serialized = cursor.fetchone()[0]
+    # Parse input date
+    input_date = pd.to_datetime(input_date_str, dayfirst=True)
 
-# Deserialize the model
-loaded_model = model_from_json(model_serialized)
+    # Find the index corresponding to the input date in CSV file
+    input_date_index_csv = np.where(df['date'] <= input_date)[0][-1]
 
-# Rest of your code...
+    # Extract the historical data up to the input date from CSV file
+    start_index_csv = max(0, input_date_index_csv - sequence_length + 1)
+    data_to_predict_csv = df['close'].values[start_index_csv:input_date_index_csv + 1]
 
-loaded_model = tf.keras.models.Sequential()
+    # Reshape and preprocess the data for prediction in CSV file
+    scaler_csv = MinMaxScaler(feature_range=(0, 1))
+    data_to_predict_scaled_csv = scaler_csv.fit_transform(data_to_predict_csv.reshape(-1, 1))
 
-for layer_config in model_config['config']['layers']:
-    layer = tf.keras.layers.deserialize(layer_config, custom_objects={})
-    loaded_model.add(layer)
+    # Ensure the input shape matches the model's expectations for CSV file
+    data_to_predict_scaled_csv = np.reshape(data_to_predict_scaled_csv, (1, sequence_length, 1))
+
+    # Make predictions using the loaded model for CSV file
+    predictions_csv = model.predict(data_to_predict_scaled_csv)
+
+    # Inverse transform the predictions to get the original scale for CSV file
+    predicted_close_value_csv = scaler_csv.inverse_transform(predictions_csv.reshape(-1, 1))
+
+    print(f"Predicted Close Value from CSV for {input_date_str}: {predicted_close_value_csv[0, 0]:.2f}")
+
+# ... (rest of the code)
 
 
-# Execute a query to fetch data
-query_data = "SELECT * FROM stock_data_AAL"
-df = pd.read_sql(query_data, connection)
+# Example usage
+model_path = '/Users/moizibrar/work/PgAi/Save.keras'  # Replace with the path to your .keras file
+csv_file_path = '/Users/moizibrar/Downloads/individual_stocks_5yr/individual_stocks_5yr/AAPL_data.csv'  # Replace with the path to your CSV file
+input_date_str = '01/05/2019'  # Replace with the desired input date (MM/DD/YYYY)
 
-
-# Convert the 'date' column to datetime with the correct format
-df['date'] = pd.to_datetime(df['date'], format='%d/%m/%Y')
-close_column = df['close']
-df.dropna(inplace=True)
-close_column = df['close']
-df.dropna(inplace=True)
-df.dropna(inplace=True)
-# Calculate the 100-day and 200-day moving averages
-ma_100_days = close_column.rolling(window=100).mean()
-ma_200_days = close_column.rolling(window=200).mean()
-
-# Create a Tkinter window
-root = tk.Tk()
-root.title("Close Value Lookup")
-
-# Function to fetch and display the close value for the entered date
-def fetch_close_value():
-    date_str = date_entry.get()
-    entered_date = pd.to_datetime(date_str, errors='coerce')
-
-    if not pd.isnull(entered_date):
-        try:
-            close_value = close_column[df['date'] == entered_date].iloc[0]
-            close_label.config(text=f"Close Value on {entered_date.strftime('%Y-%m-%d')}: {close_value:.2f}")
-        except IndexError:
-            close_label.config(text=f"No data for {entered_date.strftime('%Y-%m-%d')}")
-    else:
-        close_label.config(text="Invalid date format")
-
-# Create Tkinter widgets
-date_label = Label(root, text="Enter Date (MM/DD/YYYY):")
-date_entry = Entry(root)
-fetch_button = Button(root, text="Fetch Close Value", command=fetch_close_value)
-close_label = Label(root, text="")
-
-# Pack Tkinter widgets
-date_label.pack()
-date_entry.pack()
-fetch_button.pack()
-close_label.pack()
-
-# Function to plot the data
-def plot_data():
-    plt.clf()  # Clear the previous plot
-    plt.plot(ma_100_days, 'r', label='MA 100 days')
-    plt.plot(ma_200_days, 'b', label='MA 200 days')
-    plt.plot(close_column, 'g', label='Close Price')
-    plt.legend()
-    plt.grid(True)
-    canvas.draw()
-
-# Create a Matplotlib figure
-figure, ax = plt.subplots(figsize=(8, 6))
-
-# Matplotlib Plotting within Tkinter window
-plot_frame = tk.Frame(root)
-plot_frame.pack(side=tk.BOTTOM, pady=10)
-
-canvas = FigureCanvasTkAgg(figure, master=plot_frame)
-canvas.get_tk_widget().pack()
-
-# Plot the initial data
-plot_data()
-
-# Start Tkinter event loop
-root.mainloop()
-
+make_stock_predictions(model_path, csv_file_path, input_date_str)

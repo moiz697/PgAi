@@ -7,9 +7,9 @@ import tkinter as tk
 from tkinter import Label, Entry, Button
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.layers import Dense, Dropout, LSTM, Bidirectional
+from tensorflow.keras.layers import Dense, Dropout, LSTM
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers import Nadam
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping
 import psycopg2
 
@@ -33,7 +33,7 @@ connection = psycopg2.connect(
 )
 
 # Execute a query to fetch data
-query = "SELECT * FROM stock_data_AAL"
+query = "SELECT * FROM stock_data"
 df = pd.read_sql(query, connection)
 
 # Convert the 'date' column to datetime with the correct format
@@ -46,6 +46,7 @@ df.dropna(inplace=True)
 # Calculate the 100-day and 200-day moving averages
 ma_100_days = close_column.rolling(window=100).mean()
 ma_200_days = close_column.rolling(window=200).mean()
+
 
 # Create a Tkinter window
 root = tk.Tk()
@@ -108,10 +109,11 @@ data_test = df['close'][int(len(df)*0.60):]
 print(data_train)
 print(data_test)
 
+
 data_train.shape[0]
 data_test.shape[0]
 
-scaler = MinMaxScaler(feature_range=(0,1))
+scaler=MinMaxScaler(feature_range=(0,1))
 # Reshape data_train and data_test before scaling
 data_train_scale = scaler.fit_transform(data_train.values.reshape(-1, 1))
 data_test_scale = scaler.transform(data_test.values.reshape(-1, 1))
@@ -128,51 +130,54 @@ x, y = np.array(x), np.array(y)
 # Reshape x to be a 3D array
 x = np.reshape(x, (x.shape[0], x.shape[1], 1))
 
-def create_bidirectional_lstm_model(input_shape):
+# Create the LSTM model
+
+
+
+def create_lstm_model(input_shape):
     model = Sequential()
-
-    # Use Bidirectional LSTM layers
-    model.add(Bidirectional(LSTM(units=100, return_sequences=True), input_shape=input_shape))
-    model.add(Dropout(0.2))
-
-    model.add(Bidirectional(LSTM(units=80, return_sequences=True)))
-    model.add(Dropout(0.2))
-
-    model.add(Bidirectional(LSTM(units=100, return_sequences=True)))
-    model.add(Dropout(0.2))
-
-    model.add(Bidirectional(LSTM(units=100, return_sequences=True)))
-    model.add(Dropout(0.3))
-
-    model.add(Bidirectional(LSTM(units=100)))
-    model.add(Dropout(0.3))
-
+    
+    model.add(LSTM(units=100, return_sequences=True, input_shape=input_shape))
+    model.add(Dropout(0.3))  # Increased dropout rate
+    
+    model.add(LSTM(units=100, return_sequences=True))
+    model.add(Dropout(0.2))  # Increased dropout rate
+    
+    model.add(LSTM(units=100, return_sequences=True))
+    model.add(Dropout(0.2))  # Increased dropout rate
+    
+    model.add(LSTM(units=100, return_sequences=True))
+    model.add(Dropout(0.3))  # Increased dropout rate
+    
+    model.add(LSTM(units=100))  # Additional LSTM layer
+    model.add(Dropout(0.3))  # Increased dropout rate
+    
     model.add(Dense(units=1))
-
+    
     return model
 
-# Assuming x and y are already defined
+    
 
 # Reshape x to be a 3D array
 x = np.reshape(x, (x.shape[0], x.shape[1], 1))
 
-# Create the Bidirectional LSTM model
-model = create_bidirectional_lstm_model(input_shape=(x.shape[1], 1))
-model.summary()
+# Create the LSTM model
+model = create_lstm_model(input_shape=(x.shape[1], 1))
 
-# Compile the model
-optimizer = Adam(learning_rate=0.001)
+
+optimizer = Nadam(learning_rate=0.002)
 model.compile(optimizer=optimizer, loss='mean_squared_error')
+
 
 # Define callbacks
 callbacks = [
-    ModelCheckpoint('Save_bidirectional.keras', save_best_only=True),
-    TensorBoard(log_dir='./logs_bidirectional', histogram_freq=1),
-    EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)
+    ModelCheckpoint('Save.keras', save_best_only=True),
+    TensorBoard(log_dir='./logs', histogram_freq=1),
+    EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
 ]
 
-# Training the model with different parameters
-history = model.fit(x, y, epochs=150, batch_size=128, verbose=1, validation_split=0.2, callbacks=callbacks)
+# Training the model
+history = model.fit(x, y, epochs=50, batch_size=64, verbose=1, validation_split=0.5, callbacks=callbacks)
 
 # Plot training and validation loss
 plt.plot(history.history['loss'], label='Training Loss')
@@ -183,21 +188,12 @@ plt.ylabel('Loss')
 plt.legend()
 plt.show()
 
-# Save the trained Bidirectional LSTM model in PostgreSQL
-model_name = "bidirectional_lstm_model"
-serialized_model = model.to_json()
+# Save the model after training
+model.save('Save.keras')
 
-# Insert the serialized model into the database
-cursor = connection.cursor()
-cursor.execute("INSERT INTO ml_models (model_name, serialized_model) VALUES (%s, %s) RETURNING model_id;",
-               (model_name, serialized_model))
-model_id = cursor.fetchone()[0]
-connection.commit()
-cursor.close()
 
 # Load the saved model using Keras
-loaded_model = load_model('Save_bidirectional.keras')
-
+loaded_model = load_model('Save.keras')
 # Use the same MinMaxScaler to scale the test data
 data_test_scale = scaler.transform(data_test.values.reshape(-1, 1))
 
@@ -228,8 +224,13 @@ print(predicted_values[:20])
 print("Actual Values:")
 print(data_test.values[:20])
 
-pass_100_days = df.tail(100)
-data_test = pd.concat([pass_100_days, data_test], ignore_index=True)
+
+
+model.summary()
+
+pass_100_days=df.tail(100)
+data_test=pd.concat([pass_100_days,data_test],ignore_index=True)
 print(data_test)
+
 
 connection.close()
