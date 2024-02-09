@@ -38,4 +38,3 @@ PG_VERSION := $(shell $(PG_CONFIG) --version | awk '{print $$2}')
 EXTENSION_VERSION = 1.0
 
 EXTENSION_CONTROL = pgai--1.0.control
-

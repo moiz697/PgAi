@@ -6,3 +6,13 @@ LANGUAGE C;
 CREATE FUNCTION pgai_loading_data() RETURNS text
 AS 'pgai.so','pgai_loading_data'
 LANGUAGE C;
+
+
+CREATE FUNCTION run_script() RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Specify the file path here
+    PERFORM open_file('/path/to/your/script.py');
+END;
+$$;

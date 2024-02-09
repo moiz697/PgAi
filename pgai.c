@@ -20,11 +20,23 @@
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/queryjumble.h"
-#include 'libpq-fe.h'
 #include "fmgr.h"
 #include "funcapi.h"
+#include <dlfcn.h>
+#include "utils/builtins.h" // Include this header for DirectFunctionCall1Coll
+#include "executor/spi.h"   
+
 PG_MODULE_MAGIC;
 
+typedef void (*Py_Initialize_t)(void);
+typedef void (*Py_Finalize_t)(void);
+typedef void (*PyRun_SimpleFile_t)(FILE *, const char *);
+
+static Py_Initialize_t py_initialize = NULL;
+static Py_Finalize_t py_finalize = NULL;
+static PyRun_SimpleFile_t py_run_simple_file = NULL;
+
+PG_FUNCTION_INFO_V1(open_file);
 
 
 void _PG_init(void);
@@ -42,8 +54,8 @@ static void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 			 bool readOnlyTree,
 			 ProcessUtilityContext context,
 			 ParamListInfo params, QueryEnvironment *queryEnv,
-			 DestReceiver *dest,
-			 QueryCompletion *qc);
+			 DestReceiver *dest
+			 );
 
 
 /* ... C code here ... */
@@ -62,8 +74,8 @@ void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 			 bool readOnlyTree,
 			 ProcessUtilityContext context,
 			 ParamListInfo params, QueryEnvironment *queryEnv,
-			 DestReceiver *dest,
-			 QueryCompletion *qc)
+			 DestReceiver *dest
+			 )
 
  {
 	/* ... C code here ... */
@@ -73,8 +85,8 @@ void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 				context,
                             params,
                             queryEnv,
-                            dest,
-                            qc);
+                            dest
+                            );
     /* ... C code here ... */
 }
 
@@ -95,7 +107,7 @@ Datum pgai_hello(PG_FUNCTION_ARGS)
     SPI_finish();
 
     /* Return a text result */
-    result = cstring_to_text("Hello World");
+    result = cstring_to_text("Function Check");
 
     PG_RETURN_TEXT_P(result);
 }
@@ -127,25 +139,21 @@ Datum pgai_loading_data(PG_FUNCTION_ARGS)
 }
 
 
-PG_FUNCTION_INFO_V1(exec_py_script);
-
-Datum
-exec_py_script(PG_FUNCTION_ARGS)
+Datum open_file(PG_FUNCTION_ARGS)
 {
-    char* script_path = PG_GETARG_CSTRING(0);
+    char *file_path = PG_GETARG_CSTRING(0);
+    FILE *file = NULL;
 
-    Py_Initialize();
-    FILE* file = fopen(script_path, "r");
-
-    if (file != NULL) {
-        PyRun_SimpleFile(file, script_path);
-        fclose(file);
-    } else {
+    // Open the file
+    file = fopen(file_path, "r");
+    if (!file)
         ereport(ERROR,
                 (errcode(ERRCODE_EXTERNAL_ROUTINE_EXCEPTION),
-                 errmsg("Could not open Python script file")));
-    }
+                 errmsg("Could not open file: %s", file_path)));
 
-    Py_Finalize();
+    // Optionally, you can do something with the file here, such as reading its contents or performing other operations
+
+    fclose(file);
+
     PG_RETURN_VOID();
 }
