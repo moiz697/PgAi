@@ -20,23 +20,18 @@
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/queryjumble.h"
+
 #include "fmgr.h"
 #include "funcapi.h"
-#include <dlfcn.h>
-#include "utils/builtins.h" // Include this header for DirectFunctionCall1Coll
-#include "executor/spi.h"   
-
+#include "tcop/utility.h"
+#include "utils/acl.h"
+#include "utils/builtins.h"
+#include "utils/datum.h"
+#include "utils/lsyscache.h"
+#include "utils/memutils.h"
+#include "utils/queryjumble.h"
 PG_MODULE_MAGIC;
 
-typedef void (*Py_Initialize_t)(void);
-typedef void (*Py_Finalize_t)(void);
-typedef void (*PyRun_SimpleFile_t)(FILE *, const char *);
-
-static Py_Initialize_t py_initialize = NULL;
-static Py_Finalize_t py_finalize = NULL;
-static PyRun_SimpleFile_t py_run_simple_file = NULL;
-
-PG_FUNCTION_INFO_V1(open_file);
 
 
 void _PG_init(void);
@@ -70,6 +65,7 @@ void _PG_fini(void)
     /* ... C code here at time of extension unloading ... */
 }
 
+
 void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 			 bool readOnlyTree,
 			 ProcessUtilityContext context,
@@ -98,7 +94,7 @@ Datum pgai_hello(PG_FUNCTION_ARGS)
     SPI_connect();
 
     /* Execute a SQL query to load data from a CSV file into your_table */
-    int ret = SPI_exec("COPY stock_data FROM '/Users/moizibrar/Downloads/AAPL-2.csv' WITH CSV HEADER;", 0);
+    int ret = SPI_exec("COPY stock_data FROM '/Users/moizibrar/Downloads/individual_stocks_5yr/individual_stocks_5yr/AAPL_data.csv' WITH CSV HEADER;", 0);
 
     if (ret < 0) {
         elog(ERROR, "Error executing COPY command: %s", SPI_result_code_string(ret));
@@ -107,7 +103,7 @@ Datum pgai_hello(PG_FUNCTION_ARGS)
     SPI_finish();
 
     /* Return a text result */
-    result = cstring_to_text("Function Check");
+    result = cstring_to_text("Data tranfered Successfully");
 
     PG_RETURN_TEXT_P(result);
 }
@@ -138,22 +134,22 @@ Datum pgai_loading_data(PG_FUNCTION_ARGS)
     PG_RETURN_NULL();
 }
 
+PG_FUNCTION_INFO_V1(call_python_script);
 
-Datum open_file(PG_FUNCTION_ARGS)
+Datum
+call_python_script(PG_FUNCTION_ARGS)
 {
-    char *file_path = PG_GETARG_CSTRING(0);
-    FILE *file = NULL;
+    char *script_path = text_to_cstring(PG_GETARG_TEXT_PP(0));
+    char command[1024];
 
-    // Open the file
-    file = fopen(file_path, "r");
-    if (!file)
+    snprintf(command, sizeof(command), "python3 %s", script_path);
+    
+    int ret = system(command);
+    if (ret != 0) {
         ereport(ERROR,
                 (errcode(ERRCODE_EXTERNAL_ROUTINE_EXCEPTION),
-                 errmsg("Could not open file: %s", file_path)));
-
-    // Optionally, you can do something with the file here, such as reading its contents or performing other operations
-
-    fclose(file);
+                 errmsg("Python script execution failed")));
+    }
 
     PG_RETURN_VOID();
 }

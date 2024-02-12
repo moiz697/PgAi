@@ -12,8 +12,11 @@ from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.optimizers import Nadam
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping
 import psycopg2
-
+import io
+from tensorflow.keras.models import save_model
+import tempfile
 # Load environment variables from .env file
+from sklearn.metrics import mean_squared_error
 load_dotenv()
 
 # Get database connection details from environment variables
@@ -31,9 +34,61 @@ connection = psycopg2.connect(
     user=db_user,
     password=db_password
 )
+def save_model_to_db(model, model_name, connection):
+    # Create a temporary file
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+        # Save the model to the temporary file
+        model_file_path = tmp_file.name
+        model.save(model_file_path, save_format='h5')  # Explicitly specify HDF5 format
+        
+    # Read the temporary file into a BytesIO object
+    with open(model_file_path, 'rb') as model_file:
+        model_byte_array = model_file.read()
+    
+    # Insert the model data into the database
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            INSERT INTO keras_models (model_name, model_data)
+            VALUES (%s, %s)
+            ON CONFLICT (model_name) DO UPDATE
+            SET model_data = EXCLUDED.model_data
+        """, (model_name, psycopg2.Binary(model_byte_array)))
+        connection.commit()
+    
+    # Clean up the temporary file
+    os.remove(model_file_path)
+
+def load_model_from_db(model_name, connection):
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT model_data FROM keras_models WHERE model_name = %s", (model_name,))
+        result = cursor.fetchone()
+        if result:
+            model_byte_array = result[0]
+
+            # Testing code starts here
+            temp_path = "temp_model.h5"
+            with open(temp_path, "wb") as f:
+                f.write(model_byte_array)
+
+            import h5py
+            try:
+                with h5py.File(temp_path, 'r') as hf:
+                    print("Success! The file is a valid HDF5 file.")
+                    # If success, proceed to load the model as usual
+                    model_buffer = io.BytesIO(model_byte_array)
+                    model = load_model(model_buffer)
+                    return model
+            except OSError:
+                print("Failure. The file is not a valid HDF5 file.")
+                return None
+            # Testing code ends here
+
+        else:
+            return None
+
 
 # Execute a query to fetch data
-query = "SELECT * FROM stock_data"
+query = "SELECT * FROM PGDATA"
 df = pd.read_sql(query, connection)
 
 # Convert the 'date' column to datetime with the correct format
@@ -146,11 +201,6 @@ def create_lstm_model(input_shape):
     model.add(LSTM(units=100, return_sequences=True))
     model.add(Dropout(0.2))  # Increased dropout rate
     
-    model.add(LSTM(units=100, return_sequences=True))
-    model.add(Dropout(0.3))  # Increased dropout rate
-    
-    model.add(LSTM(units=100))  # Additional LSTM layer
-    model.add(Dropout(0.3))  # Increased dropout rate
     
     model.add(Dense(units=1))
     
@@ -175,9 +225,15 @@ callbacks = [
     TensorBoard(log_dir='./logs', histogram_freq=1),
     EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
 ]
-
+save_model_to_db(model, 'MyKerasModel', connection)
 # Training the model
 history = model.fit(x, y, epochs=50, batch_size=64, verbose=1, validation_split=0.5, callbacks=callbacks)
+
+
+# Save the model after training to PostgreSQL
+save_model_to_db(model, 'MyKerasModel', connection)
+
+# No need to call model.save('Save.keras') if you're saving to PostgreSQL
 
 # Plot training and validation loss
 plt.plot(history.history['loss'], label='Training Loss')
@@ -220,9 +276,9 @@ predicted_values = scaler.inverse_transform(predictions.reshape(-1, 1))
 
 # Print the first few predictions for visualization
 print("Predicted Values:")
-print(predicted_values[:20])
+print(predicted_values[10868:])
 print("Actual Values:")
-print(data_test.values[:20])
+print(data_test.values[10868:10868])
 
 
 
@@ -231,6 +287,16 @@ model.summary()
 pass_100_days=df.tail(100)
 data_test=pd.concat([pass_100_days,data_test],ignore_index=True)
 print(data_test)
+loaded_model = load_model_from_db('MyKerasModel', connection)
+# Inverse transform the predictions to get them back to the original scale if you used MinMaxScaler
+predicted_values = scaler.inverse_transform(predictions)
+
+# Compare predicted values to the actual values (y_test)
+# Assuming you have an actual y_test that corresponds to x_test
+actual_values = y_test  # Replace with actual y_test data
+actual_values_scaled = scaler.transform(actual_values.reshape(-1, 1))
+actual_values_inverse = scaler.inverse_transform(actual_values_scaled)
+
 
 
 connection.close()

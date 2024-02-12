@@ -1,245 +1,236 @@
-import psycopg2
-from psycopg2 import sql
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.models import Sequential
-from sklearn.model_selection import KFold
-from tensorflow.keras.layers import Dense, LSTM
-from tensorflow.keras.models import load_model
-from sklearn.metrics import mean_squared_error
-from sqlalchemy import create_engine
-from dotenv import load_dotenv
 import os
-import math
-import pickle
-
+from dotenv import load_dotenv
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import tkinter as tk
+from tkinter import Label, Entry, Button
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.layers import Dense, Dropout, LSTM
+from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.optimizers import Nadam
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping
 import psycopg2
 
-def connect_to_db():
-    # Load environment variables from .env file
-    load_dotenv()
+# Load environment variables from .env file
+load_dotenv()
 
-    # Get database connection details from environment variables
-    db_host = os.getenv("DB_HOST")
-    db_port = os.getenv("DB_PORT")
-    db_name = os.getenv("DB_NAME")
-    db_user = os.getenv("DB_USER")
-    db_password = os.getenv("DB_PASSWORD")
+# Get database connection details from environment variables
+db_host = os.getenv("DB_HOST")
+db_port = os.getenv("DB_PORT")
+db_name = os.getenv("DB_NAME")
+db_user = os.getenv("DB_USER")
+db_password = os.getenv("DB_PASSWORD")
 
-    # Create a PostgreSQL connection
-    connection = psycopg2.connect(
-        host=db_host,
-        port=db_port,
-        database=db_name,
-        user=db_user,
-        password=db_password
-    )
+# Create a PostgreSQL connection
+connection = psycopg2.connect(
+    host=db_host,
+    port=db_port,
+    database=db_name,
+    user=db_user,
+    password=db_password
+)
 
-    return connection
+# Execute a query to fetch data
+query = "SELECT * FROM PGDATA"
+df = pd.read_sql(query, connection)
 
-# Call the function to connect to the database
-connection = connect_to_db()
+# Convert the 'date' column to datetime with the correct format
+df['date'] = pd.to_datetime(df['date'], format='%d/%m/%Y')
+close_column = df['close']
+df.dropna(inplace=True)
+close_column = df['close']
+df.dropna(inplace=True)
+df.dropna(inplace=True)
+# Calculate the 100-day and 200-day moving averages
+ma_100_days = close_column.rolling(window=100).mean()
+ma_200_days = close_column.rolling(window=200).mean()
 
-def load_and_prepare_data(connection):
-    # Get database connection details from the connection object
-    db_user = connection.info.user
-    db_password = connection.info.password
-    db_host = connection.info.host
-    db_port = connection.info.port
-    db_name = connection.info.dbname
 
-    # Create a new connection using SQLAlchemy
-    engine = create_engine(f'postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}')
+# Create a Tkinter window
+root = tk.Tk()
+root.title("Close Value Lookup")
 
-    # Rest of the function remains unchanged
-    sql_query = "SELECT * FROM stock_data_AAL"
-    df = pd.read_sql_query(sql_query, engine)
-    df1 = df.reset_index()['close']
-    date=df.reset_index()['date']
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    df1 = scaler.fit_transform(np.array(df1).reshape(-1, 1))
-    train_size = int(len(df1) * 0.70)
-    test_size = len(df1) - train_size
-     # Define training_params
-    training_params = {
-        "train_size": train_size,
-        "test_size": test_size,
-        "time_step": 100,
-        # Add other relevant parameters here
-    }
-    
-    train_data = df1[:train_size, :]
-    test_data = df1[train_size:, :1]
-    engine.dispose()
-    return df1, train_data, test_data, scaler,date,training_params
+# Function to fetch and display the close value for the entered date
+def fetch_close_value():
+    date_str = date_entry.get()
+    entered_date = pd.to_datetime(date_str, errors='coerce')
 
-def create_dataset(dataset, time_step=100):
-    dataX, dataY = [], []
-    for i in range(len(dataset) - time_step - 1):
-        a = dataset[i:(i + time_step), 0]
-        dataX.append(a)
-        dataY.append(dataset[i + time_step, 0])
-    return np.array(dataX), np.array(dataY)
+    if not pd.isnull(entered_date):
+        try:
+            close_value = close_column[df['date'] == entered_date].iloc[0]
+            close_label.config(text=f"Close Value on {entered_date.strftime('%Y-%m-%d')}: {close_value:.2f}")
+        except IndexError:
+            close_label.config(text=f"No data for {entered_date.strftime('%Y-%m-%d')}")
+    else:
+        close_label.config(text="Invalid date format")
 
-def create_and_train_model(x_train, y_train, x_test, y_test):
+# Create Tkinter widgets
+date_label = Label(root, text="Enter Date (MM/DD/YYYY):")
+date_entry = Entry(root)
+fetch_button = Button(root, text="Fetch Close Value", command=fetch_close_value)
+close_label = Label(root, text="")
+
+# Pack Tkinter widgets
+date_label.pack()
+date_entry.pack()
+fetch_button.pack()
+close_label.pack()
+
+# Function to plot the data
+def plot_data():
+    plt.clf()  # Clear the previous plot
+    plt.plot(ma_100_days, 'r', label='MA 100 days')
+    plt.plot(ma_200_days, 'b', label='MA 200 days')
+    plt.plot(close_column, 'g', label='Close Price')
+    plt.legend()
+    plt.grid(True)
+    canvas.draw()
+
+# Create a Matplotlib figure
+figure, ax = plt.subplots(figsize=(8, 6))
+
+# Matplotlib Plotting within Tkinter window
+plot_frame = tk.Frame(root)
+plot_frame.pack(side=tk.BOTTOM, pady=10)
+
+canvas = FigureCanvasTkAgg(figure, master=plot_frame)
+canvas.get_tk_widget().pack()
+
+# Plot the initial data
+plot_data()
+
+# Start Tkinter event loop
+root.mainloop()
+
+data_train = df['close'][0: int(len(df)*0.60)]
+data_test = df['close'][int(len(df)*0.60):] 
+print(data_train)
+print(data_test)
+
+
+data_train.shape[0]
+data_test.shape[0]
+
+scaler=MinMaxScaler(feature_range=(0,1))
+# Reshape data_train and data_test before scaling
+data_train_scale = scaler.fit_transform(data_train.values.reshape(-1, 1))
+data_test_scale = scaler.transform(data_test.values.reshape(-1, 1))
+
+# Prepare the training data
+x = []
+y = []
+for i in range(100, data_train_scale.shape[0]):
+    x.append(data_train_scale[i-100:i, 0])
+    y.append(data_train_scale[i, 0])
+
+x, y = np.array(x), np.array(y)
+
+# Reshape x to be a 3D array
+x = np.reshape(x, (x.shape[0], x.shape[1], 1))
+
+# Create the LSTM model
+
+
+
+def create_lstm_model(input_shape):
     model = Sequential()
     
-    model.add(LSTM(units=100, return_sequences=True, input_shape=(100, 1)))
+    model.add(LSTM(units=100, return_sequences=True, input_shape=input_shape))
+    model.add(Dropout(0.3))  # Increased dropout rate
+    
+    model.add(LSTM(units=100, return_sequences=True))
     model.add(Dropout(0.2))  # Increased dropout rate
     
-    model.add(LSTM(units=50, return_sequences=True))
+    model.add(LSTM(units=100, return_sequences=True))
     model.add(Dropout(0.2))  # Increased dropout rate
     
-    model.add(LSTM(units=50))
-    model.add(Dropout(0.2))  # Increased dropout rate
+    model.add(LSTM(units=100, return_sequences=True))
+    model.add(Dropout(0.3))  # Increased dropout rate
     
-    model.add(Dense(units=1, activation='relu'))
+    model.add(LSTM(units=100))  # Additional LSTM layer
+    model.add(Dropout(0.3))  # Increased dropout rate
     
-    model.compile(loss='mean_squared_error', optimizer='adam')
-    model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=1, batch_size=64, verbose=1)
+    model.add(Dense(units=1))
     
-    # Save the model architecture and weights
-    model.save("trained_model.h5")
-
     return model
 
-def predict_and_evaluate(model, x_train, y_train, x_test, y_test, scaler):
-    train_predict = model.predict(x_train)
-    test_predict = model.predict(x_test)
-    train_predict = scaler.inverse_transform(train_predict)
-    test_predict = scaler.inverse_transform(test_predict)
-    rmse_train = math.sqrt(mean_squared_error(y_train, train_predict))
-    return train_predict, test_predict, rmse_train
+    
 
-def plot_original_vs_predicted(df1, train_predict, test_predict, scaler, dates):
-    # Inverse transform the original normalized data
-    original_data = scaler.inverse_transform(df1)
+# Reshape x to be a 3D array
+x = np.reshape(x, (x.shape[0], x.shape[1], 1))
 
-    # Prepare the plot for the training predictions
-    train_predict_plot = np.empty_like(df1)
-    train_predict_plot[:, :] = np.nan
-    train_predict_plot[100:len(train_predict) + 100, :] = train_predict
-
-    # Prepare the plot for the testing predictions
-    test_predict_plot = np.empty_like(df1)
-    test_predict_plot[:, :] = np.nan
-    test_predict_plot[len(train_predict) + (100 * 2) + 1:len(df1) - 1, :] = test_predict
-
-def calculate_rmse(y_true, y_pred):
-    mse = mean_squared_error(y_true, y_pred)
-    rmse = np.sqrt(mse)
-    return rmse
-
-def apply_kfold_cross_validation(model, X, y, n_splits=5):
-    kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
-    rmse_values = []
-
-    for train_index, test_index in kf.split(X):
-        X_train, X_test = X[train_index], X[test_index]
-        y_train, y_test = y[train_index], y[test_index]
-
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-
-        rmse = calculate_rmse(y_test, y_pred)
-        rmse_values.append(rmse)
-
-    return rmse_values
+# Create the LSTM model
+model = create_lstm_model(input_shape=(x.shape[1], 1))
 
 
-def save_model(model, model_filename):
-    model.save(model_filename)
-
-def save_scaler(scaler, scaler_filename):
-    with open(scaler_filename, "wb") as scaler_file:
-        pickle.dump(scaler, scaler_file)
-
-def save_training_params(training_params, params_filename):
-    with open(params_filename, "wb") as params_file:
-        pickle.dump(training_params, params_file)
-
-def load_saved_model(model_filename):
-    return load_model(model_filename)
-
-def load_saved_scaler(scaler_filename):
-    with open(scaler_filename, "rb") as scaler_file:
-        return pickle.load(scaler_file)
-
-def load_saved_training_params(params_filename):
-    with open(params_filename, "rb") as params_file:
-        return pickle.load(params_file)
-
-def save_to_postgres(connection, model_binary_data, scaler, training_params):
-    cursor = connection.cursor()
-
-    # Create a table if it doesn't exist
-    create_table_query = """
-    CREATE TABLE IF NOT EXISTS saved_models (
-        id SERIAL PRIMARY KEY,
-        model_data BYTEA,
-        scaler_data BYTEA,
-        training_params BYTEA
-    );
-    """
-    cursor.execute(create_table_query)
-    connection.commit()
-
-    # Convert the data to binary before inserting into the table
-    insert_query = sql.SQL("INSERT INTO saved_models (model_data, scaler_data, training_params) VALUES (%s, %s, %s)")
-    cursor.execute(insert_query, (psycopg2.Binary(model_binary_data.encode('utf-8')), psycopg2.Binary(pickle.dumps(scaler)), psycopg2.Binary(pickle.dumps(training_params))))
-    connection.commit()
-
-    cursor.close()
-
-# ... (rest of your code)
+optimizer = Nadam(learning_rate=0.002)
+model.compile(optimizer=optimizer, loss='mean_squared_error')
 
 
-connection = connect_to_db()
+# Define callbacks
+callbacks = [
+    ModelCheckpoint('Save.keras', save_best_only=True),
+    TensorBoard(log_dir='./logs', histogram_freq=1),
+    EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+]
 
-if connection:
-    # Load and prepare data
-    df1, train_data, test_data, scaler, date, training_params = load_and_prepare_data(connection)
+# Training the model
+history = model.fit(x, y, epochs=50, batch_size=64, verbose=1, validation_split=0.5, callbacks=callbacks)
 
-    # Create and train the model
-    x_train, y_train = create_dataset(train_data)
-    x_test, y_test = create_dataset(test_data)
-    model = create_and_train_model(x_train, y_train, x_test, y_test)
+# Plot training and validation loss
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title('Model Training and Validation Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend()
+plt.show()
 
-    # Serialize the model
-    model_binary_data = model.to_json()
+# Save the model after training
+model.save('Save.keras')
 
-    # Predict and evaluate
-    train_predict, test_predict, rmse_train = predict_and_evaluate(model, x_train, y_train, x_test, y_test, scaler)
 
-    # Calculate and print RMSE values
-    rmse_train = calculate_rmse(y_train, train_predict)
-    rmse_test = calculate_rmse(y_test, test_predict)
-    print("RMSE for Training Data:", rmse_train)
-    print("RMSE for Testing Data:", rmse_test)
+# Load the saved model using Keras
+loaded_model = load_model('Save.keras')
+# Use the same MinMaxScaler to scale the test data
+data_test_scale = scaler.transform(data_test.values.reshape(-1, 1))
 
-    # Apply K-fold cross-validation on the training data
-    rmse_values = apply_kfold_cross_validation(model, x_train, y_train)
-    print("Average RMSE over K folds:", np.mean(rmse_values))
+# Prepare the test data
+x_test = []
+y_test = []
+for i in range(100, data_test_scale.shape[0]):
+    x_test.append(data_test_scale[i-100:i, 0])
+    y_test.append(data_test_scale[i, 0])
 
-    # Predict and evaluate again for visualization
-    train_predict, test_predict = predict_and_evaluate(model, x_train, y_train, x_test, y_test, scaler)[:2]
+x_test, y_test = np.array(x_test), np.array(y_test)
 
-    # Plot original vs predicted
-    plot_original_vs_predicted(df1, train_predict, test_predict, scaler, date)
+# Reshape x_test to be a 3D array
+x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
 
-    # Save the model, scaler, and training parameters using the native Keras format
-    save_model(model, "trained_model.keras")  # Use .keras extension instead of .h5
-    save_scaler(scaler, "scaler.pkl")
-    save_training_params(training_params, "training_params.pkl")
+# Make predictions using the loaded model
+predictions = loaded_model.predict(x_test)
 
-    # Save to PostgreSQL
-    save_to_postgres(connection, model_binary_data, scaler, training_params)
+# Inverse transform the predictions to get the original scale
+predicted_values = scaler.inverse_transform(predictions.reshape(-1, 1))
 
-    # Load the model, scaler, and training parameters
-    loaded_model = load_saved_model("trained_model.keras")
-    loaded_scaler = load_saved_scaler("scaler.pkl")
-    loaded_training_params = load_saved_training_params("training_params.pkl")
+# Evaluate your model or do further analysis with the predictions and actual values
+# ...
 
-    connection.close()
+# Print the first few predictions for visualization
+print("Predicted Values:")
+print(predicted_values[10870:])
+print("Actual Values:")
+print(data_test.values[10870:])
+
+
+
+model.summary()
+
+pass_100_days=df.tail(100)
+data_test=pd.concat([pass_100_days,data_test],ignore_index=True)
+print(data_test)
+
+
+connection.close()

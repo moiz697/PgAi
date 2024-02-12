@@ -7,12 +7,10 @@ CREATE FUNCTION pgai_loading_data() RETURNS text
 AS 'pgai.so','pgai_loading_data'
 LANGUAGE C;
 
+CREATE EXTENSION IF NOT EXISTS plpython3u;
 
-CREATE FUNCTION run_script() RETURNS void
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    -- Specify the file path here
-    PERFORM open_file('/path/to/your/script.py');
-END;
-$$;
+CREATE OR REPLACE FUNCTION call_python_script(arg text)
+RETURNS void AS
+'$libdir/pgai', 
+'call_python_script'
+LANGUAGE C STRICT;
