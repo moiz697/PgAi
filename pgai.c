@@ -1,155 +1,170 @@
 #include "postgres.h"
-#include "access/htup_details.h"
-#include "access/sysattr.h"
-#include "access/xact.h"
-#include "catalog/heap.h"
-#include "catalog/pg_type.h"
-#include "commands/trigger.h"
-#include "executor/executor.h"
-#include "utils/rel.h"
-#include "utils/snapmgr.h"
-#include "utils/syscache.h"
-#include "utils/typcache.h"
-#include "utils/acl.h"
-#include "utils/builtins.h"
-#include "access/printtup.h"
-#include "executor/spi.h"
-#include "tcop/pquery.h"
-#include "tcop/utility.h"
-#include "utils/datum.h"
-#include "utils/lsyscache.h"
-#include "utils/memutils.h"
-#include "utils/queryjumble.h"
-
 #include "fmgr.h"
 #include "funcapi.h"
-#include "tcop/utility.h"
-#include "utils/acl.h"
-#include "utils/builtins.h"
-#include "utils/datum.h"
-#include "utils/lsyscache.h"
-#include "utils/memutils.h"
-#include "utils/queryjumble.h"
+#include "access/heapam.h"
+#include "utils/rel.h"
+#include "utils/tuplestore.h"
+#include "utils/snapmgr.h"
+#include "catalog/pg_class.h" 
+#include "nodes/makefuncs.h" 
+#include "utils/snapshot.h" 
+
 PG_MODULE_MAGIC;
-
-
 
 void _PG_init(void);
 void _PG_fini(void);
 
-PG_FUNCTION_INFO_V1(pgai_hello);
-PG_FUNCTION_INFO_V1(pgai_loading_data);
-Datum hello(PG_FUNCTION_ARGS);
-extern Datum get_postgres_version(PG_FUNCTION_ARGS);
-Datum loading_data(PG_FUNCTION_ARGS);
-PG_FUNCTION_INFO_V1(get_postgres_version);
-static ProcessUtility_hook_type prev_ProcessUtility = NULL;
-
-static void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
-			 bool readOnlyTree,
-			 ProcessUtilityContext context,
-			 ParamListInfo params, QueryEnvironment *queryEnv,
-			 DestReceiver *dest
-			 );
-
-
-/* ... C code here ... */
 void _PG_init(void)
 {
-    /* ... C code here at time of extension loading ... */
-    ProcessUtility_hook = prev_ProcessUtility;
+    /* Initialization code goes here */
 }
 
 void _PG_fini(void)
 {
-    /* ... C code here at time of extension unloading ... */
+    /* Finalization code goes here */
 }
 
+PG_FUNCTION_INFO_V1(pg_test);
 
-void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
-			 bool readOnlyTree,
-			 ProcessUtilityContext context,
-			 ParamListInfo params, QueryEnvironment *queryEnv,
-			 DestReceiver *dest
-			 )
-
- {
-	/* ... C code here ... */
-    standard_ProcessUtility(pstmt,
-                            queryString,
-                            readOnlyTree,    
-				context,
-                            params,
-                            queryEnv,
-                            dest
-                            );
-    /* ... C code here ... */
-}
-
-Datum pgai_hello(PG_FUNCTION_ARGS)
-{
-    text *result;
-
-    /* Your custom code goes here, e.g., running a SQL query */
-    SPI_connect();
-
-    /* Execute a SQL query to load data from a CSV file into your_table */
-    int ret = SPI_exec("COPY stock_data FROM '/Users/moizibrar/Downloads/individual_stocks_5yr/individual_stocks_5yr/AAPL_data.csv' WITH CSV HEADER;", 0);
-
-    if (ret < 0) {
-        elog(ERROR, "Error executing COPY command: %s", SPI_result_code_string(ret));
-    }
-
-    SPI_finish();
-
-    /* Return a text result */
-    result = cstring_to_text("Data tranfered Successfully");
-
-    PG_RETURN_TEXT_P(result);
-}
-
-Datum pgai_loading_data(PG_FUNCTION_ARGS)
-{
-    
-  if (SPI_connect() != SPI_OK_CONNECT)
-        ereport(ERROR, (errmsg("Failed to connect to SPI")));
-
-    // Define the SQL statement to create the table
-    const char *createTableSQL = 
-        "CREATE TABLE stock_data ("
-        "    date DATE,"
-        "    open NUMERIC,"
-        "    high NUMERIC,"
-        "    low NUMERIC,"
-        "    close NUMERIC,"
-        "    volume BIGINT,"
-        "    name VARCHAR(5)"
-        ");";
-
-    if (SPI_exec(createTableSQL, 0) != SPI_OK_UTILITY)
-        ereport(ERROR, (errmsg("Failed to create the table")));
-
-    SPI_finish();
-    Datum helloResult = DirectFunctionCall1(pgai_hello, (Datum) 0);
-    PG_RETURN_NULL();
-}
-
-PG_FUNCTION_INFO_V1(call_python_script);
 
 Datum
-call_python_script(PG_FUNCTION_ARGS)
+pg_test(PG_FUNCTION_ARGS)
 {
-    char *script_path = text_to_cstring(PG_GETARG_TEXT_PP(0));
-    char command[1024];
+    ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+    TupleDesc tupdesc;
+    Tuplestorestate *tupstore;
+    MemoryContext per_query_ctx;
+	MemoryContext oldcontext;
 
-    snprintf(command, sizeof(command), "python3 %s", script_path);
-    
-    int ret = system(command);
-    if (ret != 0) {
+    /* Check if caller supports returning a tuplestore */
+    if (rsinfo == NULL)
+        return (Datum) 0;
+    /* Check if materialize mode is supported */
+    if (!(rsinfo->allowedModes & SFRM_Materialize))
         ereport(ERROR,
-                (errcode(ERRCODE_EXTERNAL_ROUTINE_EXCEPTION),
-                 errmsg("Python script execution failed")));
+                (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                 errmsg("Materialize mode required, but it is not allowed in this context.")));
+    /* Build a tuple descriptor for our result type */
+    if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+        elog(ERROR, "[pgai] pg_test: Return type must be a row type.");
+
+
+    if (tupdesc->natts != 8)
+		elog(ERROR, "[pgai] pg_test: Incorrect number of output arguments, received %d, required %d.", tupdesc->natts, 8);
+
+	/* Switch into long-lived context to construct returned data structures */
+	per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
+	oldcontext = MemoryContextSwitchTo(per_query_ctx);
+
+   /* Initialize tuplestore */
+    tupstore = tuplestore_begin_heap(true, false, 1000);
+    rsinfo->returnMode = SFRM_Materialize;
+    rsinfo->setResult = tupstore;
+    rsinfo->setDesc = tupdesc;
+    MemoryContextSwitchTo(oldcontext);
+
+    /* Open the relation */
+    Relation rel = relation_openrv(makeRangeVar("public", "stock_data", -1), AccessShareLock);
+        if (!RelationIsValid(rel))
+        ereport(ERROR,
+                (errcode(ERRCODE_UNDEFINED_TABLE),
+                 errmsg("Relation not found")));
+              
+    /* Begin table scan */
+    Snapshot snapshot = GetTransactionSnapshot();
+    TableScanDesc scan = table_beginscan(rel, snapshot, 0, NULL);
+    if (!HeapTupleIsValid(scan))
+        ereport(ERROR,
+                (errcode(ERRCODE_INTERNAL_ERROR),
+                 errmsg("Table scan failed")));
+
+    /* Fetch rows and add to tuplestore */
+    HeapTuple tuple;
+    Datum values[8];
+    bool nulls[8] = {false};
+
+    while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
+    {
+        if (!HeapTupleIsValid(tuple)) {
+            elog(ERROR, "Invalid tuple"); // Log error if the tuple is invalid
+            break; // Exit the loop if the tuple is invalid
+        }
+
+        values[0] = heap_getattr(tuple, 1, tupdesc, &nulls[0]);
+        values[1] = heap_getattr(tuple, 2, tupdesc, &nulls[1]);
+        values[2] = heap_getattr(tuple, 3, tupdesc, &nulls[2]);
+        values[3] = heap_getattr(tuple, 4, tupdesc, &nulls[3]);
+        values[4] = heap_getattr(tuple, 5, tupdesc, &nulls[4]);
+        values[5] = heap_getattr(tuple, 6, tupdesc, &nulls[5]);
+        values[6] = heap_getattr(tuple, 7, tupdesc, &nulls[6]);
+        values[7] = 1000;
+      
+        
+        //values[1] =12331;
+    
+        tuplestore_putvalues(tupstore, tupdesc, values, nulls);
+    }
+    
+ 
+   /* Cleanup */
+    table_endscan(scan);
+    relation_close(rel, AccessShareLock);
+	tuplestore_donestoring(tupstore);
+
+    return (Datum) 0;
+}
+
+Datum heap_open_and_retrieve_rows(PG_FUNCTION_ARGS)
+{
+    ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+    TupleDesc tupdesc = NULL;
+    Tuplestorestate *tupstore;
+
+    if (rsinfo == NULL || rsinfo->isDone)
+        PG_RETURN_NULL();
+
+    tupdesc = CreateTemplateTupleDesc(1);
+    TupleDescInitEntry(tupdesc, (AttrNumber) 1, "value", INT8OID, -1, 0);
+
+    tupstore = tuplestore_begin_heap(true, false, 0);
+    rsinfo->returnMode = SFRM_Materialize;
+    rsinfo->setResult = tupstore;
+    rsinfo->setDesc = tupdesc;
+
+    /* Open the relation */
+    Relation rel = relation_openrv(makeRangeVar("public", "stock_data", -1), AccessShareLock);
+    if (!RelationIsValid(rel))
+        ereport(ERROR,
+                (errcode(ERRCODE_UNDEFINED_TABLE),
+                 errmsg("Relation not found")));
+
+    /* Start scanning the relation */
+    elog(WARNING, "Starting scan of public.stock_data table");
+    Snapshot snapshot = GetTransactionSnapshot();
+    elog(WARNING, "Snapshot xmin: %u, xmax: %u, xcnt: %d", snapshot->xmin, snapshot->xmax, snapshot->xcnt);
+
+    TableScanDesc scan = table_beginscan(rel, snapshot, 0, NULL);
+    if (!HeapTupleIsValid(scan))
+        ereport(ERROR,
+                (errcode(ERRCODE_INTERNAL_ERROR),
+                 errmsg("Table scan failed")));
+
+    /* Fetch rows and add to tuplestore */
+    HeapTuple tuple;
+    Datum values[1];
+    bool nulls[1] = {false};
+
+    while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
+    {
+        values[0] = heap_getattr(tuple, 1, tupdesc, &nulls[0]);
+        tuplestore_putvalues(tupstore, tupdesc, values, nulls);
     }
 
-    PG_RETURN_VOID();
+    /* Cleanup */
+    table_endscan(scan);
+    relation_close(rel, AccessShareLock);
+
+    tuplestore_donestoring(tupstore);
+
+    PG_RETURN_NULL();
 }

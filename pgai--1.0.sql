@@ -1,16 +1,19 @@
--- Create a C function for the extension
-CREATE FUNCTION pgai_hello() RETURNS text
-AS 'pgai.so', 'pgai_hello'
-LANGUAGE C;
+/* contrib/pg_stat_monitor/pg_stat_monitor--2.0.sql */
 
-CREATE FUNCTION pgai_loading_data() RETURNS text
-AS 'pgai.so','pgai_loading_data'
-LANGUAGE C;
+-- complain if script is sourced in psql, rather than via CREATE EXTENSION
+\echo Use "CREATE EXTENSION pgai" to load this file. \quit
 
-CREATE EXTENSION IF NOT EXISTS plpython3u;
+CREATE FUNCTION pg_test (
+out date    date,
+out open    numeric,
+out high    numeric,
+out low     numeric,
+out close   numeric,
+out volume  bigint,
+out name    text,
+out close_pred    int
+)
+RETURNS SETOF record
+AS 'MODULE_PATHNAME', 'pg_test'
+LANGUAGE C STRICT VOLATILE PARALLEL SAFE;
 
-CREATE OR REPLACE FUNCTION call_python_script(arg text)
-RETURNS void AS
-'$libdir/pgai', 
-'call_python_script'
-LANGUAGE C STRICT;

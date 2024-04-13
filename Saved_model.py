@@ -9,33 +9,24 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 def load_model_from_db(model_name, connection):
-    select_query = "SELECT model_data FROM model_storage WHERE model_name = %s;"
+    select_query = "SELECT serialized_model FROM keras_models WHERE model_name = %s;"
     
     with connection.cursor() as cursor:
         cursor.execute(select_query, (model_name,))
         result = cursor.fetchone()
     
     if result:
-        model_data = pickle.loads(result[0])
-        return model_data
+        serialized_model_data = result[0]
+        model = load_model(serialized_model_data)
+        return model
     else:
         print("Model not found.")
         return None
 
-def make_predictions(model, input_date_str, connection, sequence_length=100):
-    # Format and validate input date
-    input_date = datetime.strptime(input_date_str, "%d/%m/%Y").strftime("%Y-%m-%d")
-    
-    # Fetch historical stock data up to the input date
-    query = "SELECT * FROM PGDATA WHERE date <= %s ORDER BY date ASC"
-    df = pd.read_sql(query, connection, params=[input_date], parse_dates=['date'])
-    
-    if len(df) < sequence_length:
-        print("Not enough historical data for prediction.")
-        return None
-    
+
+def make_predictions(model, input_date_str, data, sequence_length=100):
     # Preprocess data for prediction
-    data_to_predict = df['close'].values[-sequence_length:]
+    data_to_predict = data['close'].values[-sequence_length:]
     scaler = MinMaxScaler(feature_range=(0, 1))
     data_to_predict_scaled = scaler.fit_transform(data_to_predict.reshape(-1, 1))
     data_to_predict_scaled = np.reshape(data_to_predict_scaled, (1, sequence_length, 1))
@@ -60,15 +51,19 @@ db_password = os.getenv("DB_PASSWORD")
 connection = psycopg2.connect(host=db_host, port=db_port, database=db_name, user=db_user, password=db_password)
 
 # Specify the model name and input date for prediction
-model_name = "Stock Prediction LSTM Model"
-input_date_str = '9/02/2027'  # Example date
+model_name = "bidirectional_lstm_model"
+input_date_str = '2027-02-09'  # Example date in YYYY-MM-DD format
 
 # Load the model from the database
 loaded_model = load_model_from_db(model_name, connection)
 
-# Make predictions if model loaded successfully
-if loaded_model:
-    predicted_close_value = make_predictions(loaded_model, input_date_str, connection, sequence_length=100)
+# Fetch historical stock data up to the input date
+query = "SELECT * FROM stock_data WHERE date <= %s ORDER BY date ASC"
+df = pd.read_sql(query, connection, params=[input_date_str], parse_dates=['date'])
+
+# Make predictions if model loaded successfully and data fetched
+if loaded_model and not df.empty:
+    predicted_close_value = make_predictions(loaded_model, input_date_str, df, sequence_length=100)
     if predicted_close_value is not None:
         print(f"Predicted Close Value for {input_date_str}: {predicted_close_value}")
 

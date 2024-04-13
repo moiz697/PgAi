@@ -69,7 +69,7 @@ def make_predictions(model_path, input_date_str, sequence_length=100):
     print(f"Predicted Close Value for {input_date_str}: {predicted_close_value[0, 0]}")
 
 # Example usage
-model_path = '/Users/moizibrar/work/finalfyp/Save.keras'
+model_path = '/Users/moizibrar/work/PgAi/Save.keras'
 input_date_str = '11/02/2020'
 
 make_predictions(model_path, input_date_str)

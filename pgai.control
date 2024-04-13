@@ -3,4 +3,3 @@ comment = ' extenstion for PostgreSQL!'
 default_version = '1.0'
 module_pathname = '$libdir/pgai'
 relocatable = true
-requires = plpython3u
