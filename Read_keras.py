@@ -43,12 +43,9 @@ def make_predictions(model_path, csv_file_path, input_date_str, sequence_length=
 
         print(f"Predicted Close Value for {input_date_str}: {predicted_close_value[0, 0]}")
 
-input_date_str = '11/02/2020'
-
-
-
 # Example usage
-model_path = '/Users/moizibrar/work/finalfyp/Save.keras'
-csv_file_path = '/Users/moizibrar/Downloads/AAPL-2.csv'
+model_path = '/Users/moizibrar/Library/Mobile Documents/com~apple~CloudDocs/Downloads/umer code fyp/tesla_stock.keras'
+csv_file_path = '/Users/moizibrar/Downloads/TSLA.csv'
+input_date_str = '15/03/2024'
 
 make_predictions(model_path, csv_file_path, input_date_str)
