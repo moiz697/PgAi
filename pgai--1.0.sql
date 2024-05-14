@@ -1,47 +1,47 @@
 /* contrib/pg_stat_monitor/pg_stat_monitor--2.0.sql */
 
--- complain if script is sourced in psql, rather than via CREATE EXTENSION
-\echo Use "CREATE EXTENSION pgai" to load this file. \quit
+-- Ensure the script is sourced via CREATE EXTENSION
+CREATE OR REPLACE FUNCTION pg_test(input_date_str TEXT)
+RETURNS TABLE(date DATE, open DOUBLE PRECISION, high DOUBLE PRECISION, low DOUBLE PRECISION, close DOUBLE PRECISION, volume DOUBLE PRECISION, name TEXT, close_pred FLOAT) AS $$
+DECLARE
+    predicted_close_value FLOAT;
+BEGIN
+    -- Call predict_stock_close_value function to get the predicted close value
+    predicted_close_value := predict_stock_close_value(input_date_str);
 
-CREATE FUNCTION apple_stock (
-out date    date,
-out open    numeric,
-out high    numeric,
-out low     numeric,
-out close   numeric,
-out volume  bigint,
+    -- Fetch stock data for the given date
+    IF input_date_str::DATE > CURRENT_DATE THEN
+        -- Return only the predicted close value for future dates
+        RETURN QUERY
+        SELECT
+            NULL::DATE as date,
+            NULL::DOUBLE PRECISION as open,
+            NULL::DOUBLE PRECISION as high,
+            NULL::DOUBLE PRECISION as low,
+            NULL::DOUBLE PRECISION as close,
+            NULL::DOUBLE PRECISION as volume,
+            NULL::TEXT as name,
+            predicted_close_value as close_pred;
+    ELSE
+        -- Return stock data along with the predicted close value for historical dates
+        RETURN QUERY
+        SELECT
+            stock_data.date,
+            stock_data.open::DOUBLE PRECISION,
+            stock_data.high::DOUBLE PRECISION,
+            stock_data.low::DOUBLE PRECISION,
+            stock_data.close::DOUBLE PRECISION,
+            stock_data.volume::DOUBLE PRECISION,
+            stock_data.name,
+            predicted_close_value as close_pred
+        FROM
+            stock_data
+        WHERE
+            stock_data.date = input_date_str::DATE;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
 
-out close_pred    int
-)
-RETURNS SETOF record
-AS 'MODULE_PATHNAME', 'apple_stock'
-LANGUAGE C STRICT VOLATILE PARALLEL SAFE;
-
-CREATE FUNCTION tesla_stock (
-out date    date,
-out open    numeric,
-out high    numeric,
-out low     numeric,
-out close   numeric,
-out volume  bigint,
-
-out close_pred    int
-)
-RETURNS SETOF record
-AS 'MODULE_PATHNAME', 'tesla_stock'
-LANGUAGE C STRICT VOLATILE PARALLEL SAFE;
-
-CREATE FUNCTION msci_pak_global_stock (
-out date    date,
-out open    numeric,
-out high    numeric,
-out low     numeric,
-out close   numeric,
-out volume  bigint,
-
-out close_pred    int
-)
-RETURNS SETOF record
 
 
 
@@ -119,6 +119,3 @@ if loaded_model:
 # Close the database connection
 connection.close()
 $$ LANGUAGE plpython3u;
-
-AS 'MODULE_PATHNAME', 'msci_pak_global_stock'
-LANGUAGE C STRICT VOLATILE PARALLEL SAFE;
