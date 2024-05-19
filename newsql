@@ -1,0 +1,131 @@
+CREATE OR REPLACE FUNCTION pg_test(input_date_str TEXT)
+RETURNS TABLE(
+    date DATE, 
+    open DOUBLE PRECISION, 
+    high DOUBLE PRECISION, 
+    low DOUBLE PRECISION, 
+    close DOUBLE PRECISION, 
+    volume DOUBLE PRECISION, 
+    adj_close DOUBLE PRECISION,  -- Changed this from TEXT to DOUBLE PRECISION
+    close_pred FLOAT
+) AS $$
+DECLARE
+    predicted_close_value FLOAT;
+BEGIN
+    -- Call predict_stock_close_value function to get the predicted close value
+    predicted_close_value := predict_stock_close_value(input_date_str);
+
+    -- Fetch stock data for the given date
+    IF input_date_str::DATE > CURRENT_DATE THEN
+        -- Return only the predicted close value for future dates
+        RETURN QUERY
+        SELECT
+            NULL::DATE as date,
+            NULL::DOUBLE PRECISION as open,
+            NULL::DOUBLE PRECISION as high,
+            NULL::DOUBLE PRECISION as low,
+            NULL::DOUBLE PRECISION as close,
+            NULL::DOUBLE PRECISION as volume,
+            NULL::DOUBLE PRECISION as adj_close,
+            predicted_close_value as close_pred;
+    ELSE
+        -- Return stock data along with the predicted close value for historical dates
+        RETURN QUERY
+        SELECT
+            apple_stock.date,
+            apple_stock.open::DOUBLE PRECISION,
+            apple_stock.high::DOUBLE PRECISION,
+            apple_stock.low::DOUBLE PRECISION,
+            apple_stock.close::DOUBLE PRECISION,
+            apple_stock.volume::DOUBLE PRECISION,
+            apple_stock.adj_close::DOUBLE PRECISION,
+            predicted_close_value as close_pred
+        FROM
+            apple_stock 
+        WHERE
+            apple_stock.date = input_date_str::DATE;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+
+
+CREATE OR REPLACE FUNCTION predict_stock_close_value(input_date_str TEXT)
+RETURNS FLOAT AS $$
+import psycopg2
+import pickle
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import model_from_json
+from datetime import datetime
+
+def load_model_from_db(model_name, connection):
+    select_query = "SELECT model_data FROM apple_model_storage WHERE model_name = %s;"
+    
+    with connection.cursor() as cursor:
+        cursor.execute(select_query, (model_name,))
+        result = cursor.fetchone()
+    
+    if result:
+        model_data = result[0]
+        try:
+            model_json_str = model_data.tobytes().decode('utf-8')  # Convert memoryview to bytes and decode to string
+            model = model_from_json(model_json_str)
+            return model
+        except Exception as e:
+            plpy.error("Error loading model: {}".format(e))
+            return None
+    else:
+        plpy.error("Model not found.")
+        return None
+
+def make_predictions(model, input_date_str, connection, sequence_length=100):
+    # Format and validate input date
+    input_date = datetime.strptime(input_date_str, "%Y-%m-%d").strftime("%Y-%m-%d")
+    
+    # Fetch historical stock data up to the input date
+    query = "SELECT * FROM apple_stock WHERE date <= %s ORDER BY date ASC"
+    df = pd.read_sql(query, connection, params=[input_date], parse_dates=['date'])
+    
+    if len(df) < sequence_length:
+        plpy.error("Not enough historical data for prediction.")
+        return None
+    
+    # Preprocess data for prediction
+    data_to_predict = df['close'].values[-sequence_length:]
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    data_to_predict_scaled = scaler.fit_transform(data_to_predict.reshape(-1, 1))
+    data_to_predict_scaled = np.reshape(data_to_predict_scaled, (1, sequence_length, 1))
+    
+    # Predict using the loaded model
+    predictions = model.predict(data_to_predict_scaled)
+    predicted_close_value = scaler.inverse_transform(predictions.reshape(-1, 1))
+    
+    return predicted_close_value[0, 0]
+
+# Database connection details
+db_host = 'localhost'
+db_port = '5432'
+db_name = 'postgres'
+db_user = 'umerkhurshid'
+db_password = 'postgres'
+
+# Establish database connection
+connection = psycopg2.connect(host=db_host, port=db_port, database=db_name, user=db_user, password=db_password)
+
+# Specify the model name
+model_name = "Stock Prediction LSTM Model"
+
+# Load the model from the database
+loaded_model = load_model_from_db(model_name, connection)
+
+# Make predictions if model loaded successfully
+if loaded_model:
+    predicted_close_value = make_predictions(loaded_model, input_date_str, connection, sequence_length=100)
+    if predicted_close_value is not None:
+        return predicted_close_value
+
+# Close the database connection
+connection.close()
+$$ LANGUAGE plpython3u;
