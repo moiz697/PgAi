@@ -132,6 +132,91 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+
+
+
+CREATE OR REPLACE FUNCTION predict_stock_close_value_tesla(input_date_str TEXT)
+RETURNS FLOAT AS $$
+import os
+import psycopg2
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import load_model
+from datetime import datetime
+import tempfile
+
+def load_model_from_db(model_name, connection):
+    select_query = "SELECT model_data FROM tesla_model_storage WHERE model_name = %s;"
+    
+    with connection.cursor() as cursor:
+        cursor.execute(select_query, (model_name,))
+        result = cursor.fetchone()
+    
+    if result:
+        model_data = result[0]
+        # Create a temporary file to write the model data in binary mode
+        with tempfile.NamedTemporaryFile(suffix=".h5", delete=False, mode='wb') as temp_file:
+            temp_file_path = temp_file.name
+            temp_file.write(model_data)
+        # Load the model from the temporary file
+        model = load_model(temp_file_path)
+        os.remove(temp_file_path)  # Delete the temporary file
+        return model
+    else:
+        plpy.error("Model not found.")
+        return None
+
+def make_predictions(model, input_date_str, connection, sequence_length=100):
+    # Format and validate input date
+    input_date = datetime.strptime(input_date_str, "%Y-%m-%d")
+    
+    # Fetch historical stock data up to the input date
+    query = "SELECT date, close FROM tesla_stock WHERE date <= %s ORDER BY date ASC"
+    df = pd.read_sql(query, connection, params=[input_date.strftime("%Y-%m-%d")], parse_dates=['date'])
+    
+    if len(df) < sequence_length:
+        plpy.error("Not enough historical data for prediction.")
+        return None
+    
+    # Preprocess data for prediction
+    data_to_predict = df['close'].values[-sequence_length:]
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    data_to_predict_scaled = scaler.fit_transform(data_to_predict.reshape(-1, 1))
+    data_to_predict_scaled = np.reshape(data_to_predict_scaled, (1, sequence_length, 1))
+    
+    # Predict using the loaded model
+    predictions = model.predict(data_to_predict_scaled)
+    predicted_close_value = scaler.inverse_transform(predictions.reshape(-1, 1))
+    
+    return predicted_close_value[0, 0]
+
+# Database connection details
+db_host = 'localhost'
+db_port = '5432'
+db_name = 'postgres'
+db_user = 'moizibrar'
+db_password = 'postgres'
+
+# Establish database connection
+connection = psycopg2.connect(host=db_host, port=db_port, database=db_name, user=db_user, password=db_password)
+
+# Specify the model name
+model_name = "Stock Prediction LSTM Model"
+
+# Load the model from the database
+loaded_model = load_model_from_db(model_name, connection)
+
+# Make predictions if model loaded successfully
+if loaded_model:
+    predicted_close_value = make_predictions(loaded_model, input_date_str, connection, sequence_length=100)
+    if predicted_close_value is not None:
+        return predicted_close_value
+
+# Close the database connection
+connection.close()
+$$ LANGUAGE plpython3u;
+
 CREATE OR REPLACE FUNCTION tesla_stock(input_date_str TEXT)
 RETURNS TABLE(
     date DATE, 
@@ -181,88 +266,6 @@ BEGIN
     END IF;
 END;
 $$ LANGUAGE plpgsql;
-
-
-CREATE OR REPLACE FUNCTION predict_stock_close_value_tesla(input_date_str TEXT)
-RETURNS FLOAT AS $$
-import psycopg2
-import pickle
-import numpy as np
-import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.models import model_from_json
-from datetime import datetime
-
-def load_model_from_db(model_name, connection):
-    select_query = "SELECT model_data FROM tesla_model_storage WHERE model_name = %s;"
-    
-    with connection.cursor() as cursor:
-        cursor.execute(select_query, (model_name,))
-        result = cursor.fetchone()
-    
-    if result:
-        model_data = result[0]
-        try:
-            model_json_str = model_data.tobytes().decode('utf-8')  # Convert memoryview to bytes and decode to string
-            model = model_from_json(model_json_str)
-            return model
-        except Exception as e:
-            plpy.error("Error loading model: {}".format(e))
-            return None
-    else:
-        plpy.error("Model not found.")
-        return None
-
-def make_predictions(model, input_date_str, connection, sequence_length=100):
-    # Format and validate input date
-    input_date = datetime.strptime(input_date_str, "%Y-%m-%d").strftime("%Y-%m-%d")
-    
-    # Fetch historical stock data up to the input date
-    query = "SELECT * FROM tesla_stock WHERE date <= %s ORDER BY date ASC"
-    df = pd.read_sql(query, connection, params=[input_date], parse_dates=['date'])
-    
-    if len(df) < sequence_length:
-        plpy.error("Not enough historical data for prediction.")
-        return None
-    
-    # Preprocess data for prediction
-    data_to_predict = df['close'].values[-sequence_length:]
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    data_to_predict_scaled = scaler.fit_transform(data_to_predict.reshape(-1, 1))
-    data_to_predict_scaled = np.reshape(data_to_predict_scaled, (1, sequence_length, 1))
-    
-    # Predict using the loaded model
-    predictions = model.predict(data_to_predict_scaled)
-    predicted_close_value = scaler.inverse_transform(predictions.reshape(-1, 1))
-    
-    return predicted_close_value[0, 0]
-
-# Database connection details
-db_host = 'localhost'
-db_port = '5432'
-db_name = 'postgres'
-db_user = 'moizibrar'
-db_password = 'postgres'
-
-# Establish database connection
-connection = psycopg2.connect(host=db_host, port=db_port, database=db_name, user=db_user, password=db_password)
-
-# Specify the model name
-model_name = "Stock Prediction LSTM Model"
-
-# Load the model from the database
-loaded_model = load_model_from_db(model_name, connection)
-
-# Make predictions if model loaded successfully
-if loaded_model:
-    predicted_close_value = make_predictions(loaded_model, input_date_str, connection, sequence_length=100)
-    if predicted_close_value is not None:
-        return predicted_close_value
-
-# Close the database connection
-connection.close()
-$$ LANGUAGE plpython3u;
-
 
 CREATE OR REPLACE FUNCTION get_arima_prediction(target_date TEXT)
 RETURNS FLOAT
