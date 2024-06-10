@@ -1,5 +1,15 @@
--- Function to predict Apple's stock close value
--- Function to predict Apple's stock close value
+
+CREATE OR REPLACE FUNCTION get_db_connection_details()
+RETURNS TABLE(key TEXT, value TEXT) AS $$
+import plpy
+
+result = plpy.execute("SELECT key, value FROM db_config")
+return [(row['key'], row['value']) for row in result]
+$$ LANGUAGE plpython3u;
+
+
+
+
 CREATE OR REPLACE FUNCTION predict_stock_close_value_apple(input_date_str TEXT)
 RETURNS FLOAT AS $$
 import os
@@ -11,76 +21,61 @@ from tensorflow.keras.models import load_model
 from datetime import datetime
 import tempfile
 
-def load_model_from_db(model_name, connection):
+def get_connection():
+    conn_details = plpy.execute("SELECT key, value FROM get_db_connection_details()")
+    conn_params = {row['key']: row['value'] for row in conn_details}
+    connection = psycopg2.connect(
+        host=conn_params['db_host'],
+        port=conn_params['db_port'],
+        database=conn_params['db_name'],
+        user=conn_params['db_user'],
+        password=conn_params['db_password']
+    )
+    return connection
+
+def load_model_from_db(model_name):
+    connection = get_connection()
     select_query = "SELECT model_data FROM apple_model_storage WHERE model_name = %s;"
-    
     with connection.cursor() as cursor:
         cursor.execute(select_query, (model_name,))
         result = cursor.fetchone()
-    
     if result:
         model_data = result[0]
-        # Create a temporary file to write the model data
         with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as temp_file:
             temp_file_path = temp_file.name
             temp_file.write(model_data)
-        # Load the model from the temporary file
         model = load_model(temp_file_path)
-        os.remove(temp_file_path)  # Delete the temporary file
+        os.remove(temp_file_path)
         return model
     else:
         plpy.error("Model not found.")
         return None
 
-def make_predictions(model, input_date_str, connection, sequence_length=100):
-    # Format and validate input date
+def make_predictions(model, input_date_str, sequence_length=100):
+    connection = get_connection()
     input_date = datetime.strptime(input_date_str, "%Y-%m-%d")
-    
-    # Fetch historical stock data up to the input date
     query = "SELECT date, close FROM apple_stock WHERE date <= %s ORDER BY date ASC"
     df = pd.read_sql(query, connection, params=[input_date.strftime("%Y-%m-%d")], parse_dates=['date'])
-    
     if len(df) < sequence_length:
         plpy.error("Not enough historical data for prediction.")
         return None
-    
-    # Preprocess data for prediction
     data_to_predict = df['close'].values[-sequence_length:]
     scaler = MinMaxScaler(feature_range=(0, 1))
     data_to_predict_scaled = scaler.fit_transform(data_to_predict.reshape(-1, 1))
     data_to_predict_scaled = np.reshape(data_to_predict_scaled, (1, sequence_length, 1))
-    
-    # Predict using the loaded model
     predictions = model.predict(data_to_predict_scaled)
     predicted_close_value = scaler.inverse_transform(predictions.reshape(-1, 1))
-    
     return predicted_close_value[0, 0]
 
-# Database connection details
-db_host = 'localhost'
-db_port = '5432'
-db_name = 'postgres'
-db_user = 'moizibrar'
-db_password = 'postgres'
-
-# Establish database connection
-connection = psycopg2.connect(host=db_host, port=db_port, database=db_name, user=db_user, password=db_password)
-
-# Specify the model name
 model_name = "Stock Prediction LSTM Model"
+loaded_model = load_model_from_db(model_name)
 
-# Load the model from the database
-loaded_model = load_model_from_db(model_name, connection)
-
-# Make predictions if model loaded successfully
 if loaded_model:
-    predicted_close_value = make_predictions(loaded_model, input_date_str, connection, sequence_length=100)
+    predicted_close_value = make_predictions(loaded_model, input_date_str)
     if predicted_close_value is not None:
         return predicted_close_value
-
-# Close the database connection
-connection.close()
 $$ LANGUAGE plpython3u;
+
 -- Function to get Apple's stock data along with the predicted close value
 CREATE OR REPLACE FUNCTION apple_stock(input_date_str TEXT)
 RETURNS TABLE(
@@ -133,8 +128,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-
-
 CREATE OR REPLACE FUNCTION predict_stock_close_value_tesla(input_date_str TEXT)
 RETURNS FLOAT AS $$
 import os
@@ -146,76 +139,63 @@ from tensorflow.keras.models import load_model
 from datetime import datetime
 import tempfile
 
-def load_model_from_db(model_name, connection):
+def get_connection():
+    conn_details = plpy.execute("SELECT key, value FROM get_db_connection_details()")
+    conn_params = {row['key']: row['value'] for row in conn_details}
+    connection = psycopg2.connect(
+        host=conn_params['db_host'],
+        port=conn_params['db_port'],
+        database=conn_params['db_name'],
+        user=conn_params['db_user'],
+        password=conn_params['db_password']
+    )
+    return connection
+
+def load_model_from_db(model_name):
+    connection = get_connection()
     select_query = "SELECT model_data FROM tesla_model_storage WHERE model_name = %s;"
-    
     with connection.cursor() as cursor:
         cursor.execute(select_query, (model_name,))
         result = cursor.fetchone()
-    
     if result:
         model_data = result[0]
-        # Create a temporary file to write the model data in binary mode
-        with tempfile.NamedTemporaryFile(suffix=".h5", delete=False, mode='wb') as temp_file:
+        with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as temp_file:
             temp_file_path = temp_file.name
             temp_file.write(model_data)
-        # Load the model from the temporary file
         model = load_model(temp_file_path)
-        os.remove(temp_file_path)  # Delete the temporary file
+        os.remove(temp_file_path)
         return model
     else:
         plpy.error("Model not found.")
         return None
 
-def make_predictions(model, input_date_str, connection, sequence_length=100):
-    # Format and validate input date
+def make_predictions(model, input_date_str, sequence_length=100):
+    connection = get_connection()
     input_date = datetime.strptime(input_date_str, "%Y-%m-%d")
-    
-    # Fetch historical stock data up to the input date
     query = "SELECT date, close FROM tesla_stock WHERE date <= %s ORDER BY date ASC"
     df = pd.read_sql(query, connection, params=[input_date.strftime("%Y-%m-%d")], parse_dates=['date'])
-    
     if len(df) < sequence_length:
         plpy.error("Not enough historical data for prediction.")
         return None
-    
-    # Preprocess data for prediction
     data_to_predict = df['close'].values[-sequence_length:]
     scaler = MinMaxScaler(feature_range=(0, 1))
     data_to_predict_scaled = scaler.fit_transform(data_to_predict.reshape(-1, 1))
     data_to_predict_scaled = np.reshape(data_to_predict_scaled, (1, sequence_length, 1))
-    
-    # Predict using the loaded model
     predictions = model.predict(data_to_predict_scaled)
     predicted_close_value = scaler.inverse_transform(predictions.reshape(-1, 1))
-    
     return predicted_close_value[0, 0]
 
-# Database connection details
-db_host = 'localhost'
-db_port = '5432'
-db_name = 'postgres'
-db_user = 'moizibrar'
-db_password = 'postgres'
-
-# Establish database connection
-connection = psycopg2.connect(host=db_host, port=db_port, database=db_name, user=db_user, password=db_password)
-
-# Specify the model name
 model_name = "Stock Prediction LSTM Model"
+loaded_model = load_model_from_db(model_name)
 
-# Load the model from the database
-loaded_model = load_model_from_db(model_name, connection)
-
-# Make predictions if model loaded successfully
 if loaded_model:
-    predicted_close_value = make_predictions(loaded_model, input_date_str, connection, sequence_length=100)
+    predicted_close_value = make_predictions(loaded_model, input_date_str)
     if predicted_close_value is not None:
         return predicted_close_value
-
-# Close the database connection
-connection.close()
 $$ LANGUAGE plpython3u;
+
+
+
 
 CREATE OR REPLACE FUNCTION tesla_stock(input_date_str TEXT)
 RETURNS TABLE(
@@ -231,7 +211,7 @@ RETURNS TABLE(
 DECLARE
     predicted_close_value FLOAT;
 BEGIN
-    -- Call predict_stock_close_value_tesla function to get the predicted close value
+    -- Call the Python prediction function
     SELECT predict_stock_close_value_tesla(input_date_str) INTO predicted_close_value;
 
     -- Fetch stock data for the given date
@@ -267,69 +247,94 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION get_arima_prediction(target_date TEXT)
-RETURNS FLOAT
-AS $$
-  import h5py
-  import pandas as pd
-  import numpy as np
-  import pickle
-  from statsmodels.tsa.statespace.sarimax import SARIMAX
-  from datetime import datetime
-  
-  # Function to load ARIMA model from .h5 file
-  def load_model_from_h5(file_path):
-      with h5py.File(file_path, 'r') as f:
-          model_data = f['model'][()]
-          model = pickle.loads(model_data.tobytes())
-      return model
 
-  # Function to get the prediction for a specific date
-  def get_prediction_for_date(model, historical_data, target_date):
-      # Get the last date from the historical data
-      start_date = historical_data.index[-1]
-      
-      # Convert target date string to Timestamp object
-      target_date = pd.Timestamp(target_date)
-      
-      # Calculate the number of days between the start date and the target date
-      days_diff = (target_date - start_date).days
-      
-      if days_diff <= 0:
-          raise ValueError("Target date must be after the start date.")
-      
-      # Forecasting with the loaded model
-      forecast = model.get_forecast(steps=days_diff)
-      forecast_mean = forecast.predicted_mean
-      
-      # Get the prediction value for the target date
-      prediction_value = forecast_mean.iloc[-1]
-      
-      return prediction_value
 
-  # Fetch historical data from the PostgreSQL table
-  query = "SELECT date, close FROM google_stock ORDER BY date"
-  result = plpy.execute(query)
-  
-  # Convert the result to a DataFrame
-  data = {'date': [], 'close': []}
-  for row in result:
-      data['date'].append(row['date'])
-      data['close'].append(row['close'])
-  df = pd.DataFrame(data)
-  df['date'] = pd.to_datetime(df['date'])
-  df.set_index('date', inplace=True)
-  
-  # Load the ARIMA model from the specified path
-  model_file_path = '/Users/moizibrar/work/pgai/arima_model.h5'  # Update this with the actual path
-  loaded_model = load_model_from_h5(model_file_path)
-  
-  # Get the prediction for the target date
-  prediction = get_prediction_for_date(loaded_model, df, target_date)
-  
-  return float(prediction)
+
+
+
+
+
+
+
+
+-- Function to get the model path from the configuration table
+CREATE OR REPLACE FUNCTION get_model_path(model_name TEXT)
+RETURNS TEXT AS $$
+import plpy
+
+result = plpy.execute("SELECT model_path FROM model_config WHERE model_name = %s", (model_name,))
+if len(result) == 0:
+    plpy.error("Model path not found.")
+else:
+    return result[0]['model_path']
 $$ LANGUAGE plpython3u;
 
+-- Function to get ARIMA prediction
+CREATE OR REPLACE FUNCTION get_arima_prediction(target_date TEXT)
+RETURNS FLOAT AS $$
+import h5py
+import pandas as pd
+import numpy as np
+import pickle
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+from datetime import datetime
+
+# Function to load ARIMA model from .h5 file
+def load_model_from_h5(file_path):
+    with h5py.File(file_path, 'r') as f:
+        model_data = f['model'][()]
+        model = pickle.loads(model_data.tobytes())
+    return model
+
+# Function to get the prediction for a specific date
+def get_prediction_for_date(model, historical_data, target_date):
+    # Get the last date from the historical data
+    start_date = historical_data.index[-1]
+    
+    # Convert target date string to Timestamp object
+    target_date = pd.Timestamp(target_date)
+    
+    # Calculate the number of days between the start date and the target date
+    days_diff = (target_date - start_date).days
+    
+    if days_diff <= 0:
+        raise ValueError("Target date must be after the start date.")
+    
+    # Forecasting with the loaded model
+    forecast = model.get_forecast(steps=days_diff)
+    forecast_mean = forecast.predicted_mean
+    
+    # Get the prediction value for the target date
+    prediction_value = forecast_mean.iloc[-1]
+    
+    return prediction_value
+
+# Fetch historical data from the PostgreSQL table
+query = "SELECT date, close FROM google_stock ORDER BY date"
+result = plpy.execute(query)
+
+# Convert the result to a DataFrame
+data = {'date': [], 'close': []}
+for row in result:
+    data['date'].append(row['date'])
+    data['close'].append(row['close'])
+df = pd.DataFrame(data)
+df['date'] = pd.to_datetime(df['date'])
+df.set_index('date', inplace=True)
+
+# Retrieve the ARIMA model path from the configuration table
+model_file_path = plpy.execute("SELECT model_path FROM model_config WHERE model_name = 'google_arima_model'")[0]['model_path']
+
+# Load the ARIMA model from the specified path
+loaded_model = load_model_from_h5(model_file_path)
+
+# Get the prediction for the target date
+prediction = get_prediction_for_date(loaded_model, df, target_date)
+
+return float(prediction)
+$$ LANGUAGE plpython3u;
+
+-- Function to get Google's stock data along with the predicted close value
 CREATE OR REPLACE FUNCTION google_stock(input_date_str TEXT)
 RETURNS TABLE(
     date DATE, 
