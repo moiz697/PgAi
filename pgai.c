@@ -20,9 +20,16 @@
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/queryjumble.h"
-#include 'libpq-fe.h'
+
 #include "fmgr.h"
 #include "funcapi.h"
+#include "tcop/utility.h"
+#include "utils/acl.h"
+#include "utils/builtins.h"
+#include "utils/datum.h"
+#include "utils/lsyscache.h"
+#include "utils/memutils.h"
+#include "utils/queryjumble.h"
 PG_MODULE_MAGIC;
 
 
@@ -42,8 +49,8 @@ static void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 			 bool readOnlyTree,
 			 ProcessUtilityContext context,
 			 ParamListInfo params, QueryEnvironment *queryEnv,
-			 DestReceiver *dest,
-			 QueryCompletion *qc);
+			 DestReceiver *dest
+			 );
 
 
 /* ... C code here ... */
@@ -58,12 +65,13 @@ void _PG_fini(void)
     /* ... C code here at time of extension unloading ... */
 }
 
+
 void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 			 bool readOnlyTree,
 			 ProcessUtilityContext context,
 			 ParamListInfo params, QueryEnvironment *queryEnv,
-			 DestReceiver *dest,
-			 QueryCompletion *qc)
+			 DestReceiver *dest
+			 )
 
  {
 	/* ... C code here ... */
@@ -73,8 +81,8 @@ void pgai_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 				context,
                             params,
                             queryEnv,
-                            dest,
-                            qc);
+                            dest
+                            );
     /* ... C code here ... */
 }
 
@@ -86,7 +94,7 @@ Datum pgai_hello(PG_FUNCTION_ARGS)
     SPI_connect();
 
     /* Execute a SQL query to load data from a CSV file into your_table */
-    int ret = SPI_exec("COPY stock_data FROM '/Users/moizibrar/Downloads/pgai/archive/individual_stocks_5yr/individual_stocks_5yr/ADSK_data.csv' WITH CSV HEADER;", 0);
+    int ret = SPI_exec("COPY stock_data FROM '/Users/moizibrar/Downloads/individual_stocks_5yr/individual_stocks_5yr/AAPL_data.csv' WITH CSV HEADER;", 0);
 
     if (ret < 0) {
         elog(ERROR, "Error executing COPY command: %s", SPI_result_code_string(ret));
@@ -95,7 +103,7 @@ Datum pgai_hello(PG_FUNCTION_ARGS)
     SPI_finish();
 
     /* Return a text result */
-    result = cstring_to_text("Hello World");
+    result = cstring_to_text("Data tranfered Successfully");
 
     PG_RETURN_TEXT_P(result);
 }
@@ -126,26 +134,22 @@ Datum pgai_loading_data(PG_FUNCTION_ARGS)
     PG_RETURN_NULL();
 }
 
-
-PG_FUNCTION_INFO_V1(exec_py_script);
+PG_FUNCTION_INFO_V1(call_python_script);
 
 Datum
-exec_py_script(PG_FUNCTION_ARGS)
+call_python_script(PG_FUNCTION_ARGS)
 {
-    char* script_path = PG_GETARG_CSTRING(0);
+    char *script_path = text_to_cstring(PG_GETARG_TEXT_PP(0));
+    char command[1024];
 
-    Py_Initialize();
-    FILE* file = fopen(script_path, "r");
-
-    if (file != NULL) {
-        PyRun_SimpleFile(file, script_path);
-        fclose(file);
-    } else {
+    snprintf(command, sizeof(command), "python3 %s", script_path);
+    
+    int ret = system(command);
+    if (ret != 0) {
         ereport(ERROR,
                 (errcode(ERRCODE_EXTERNAL_ROUTINE_EXCEPTION),
-                 errmsg("Could not open Python script file")));
+                 errmsg("Python script execution failed")));
     }
 
-    Py_Finalize();
     PG_RETURN_VOID();
 }
