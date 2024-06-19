@@ -22,12 +22,11 @@ from datetime import datetime
 import tempfile
 import pickle
 
-def get_db_config(connection):
-    cursor = connection.cursor()
-    cursor.execute("SELECT key, value FROM db_config;")
-    config = cursor.fetchall()
-    cursor.close()
-    return {key: value for key, value in config}
+def get_db_config():
+    # Use plpy to execute a query to get the database configuration
+    result = plpy.execute("SELECT key, value FROM db_config;")
+    config = {row['key']: row['value'] for row in result}
+    return config
 
 def load_model_and_scaler_from_db(model_name, connection):
     select_query = "SELECT model_data, scaler_data FROM apple_model_storage WHERE model_name = %s;"
@@ -121,12 +120,8 @@ def make_predictions(model, scaler, input_date_str, connection, sequence_length=
     
     return predicted_close_value
 
-# Fetch base connection details from the environment
-base_conn = psycopg2.connect(dbname='postgres', user='moizibrar', password='postgres', host='localhost', port='5432')
-
 # Fetch database connection details from the db_config table
-db_config = get_db_config(base_conn)
-base_conn.close()
+db_config = get_db_config()
 
 # Establish database connection using fetched details
 connection = psycopg2.connect(dbname=db_config['db_name'], user=db_config['db_user'], password=db_config['db_password'], host=db_config['db_host'], port=int(db_config['db_port']))
@@ -208,12 +203,11 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from datetime import datetime, timedelta
 
-def get_db_config(connection):
-    cursor = connection.cursor()
-    cursor.execute("SELECT key, value FROM db_config;")
-    config = cursor.fetchall()
-    cursor.close()
-    return {key: value for key, value in config}
+def get_db_config():
+    # Use plpy to execute a query to get the database configuration
+    result = plpy.execute("SELECT key, value FROM db_config;")
+    config = {row['key']: row['value'] for row in result}
+    return config
 
 def load_model_and_scaler_from_db(model_name, connection):
     select_query = "SELECT model_data, scaler_data FROM tesla_model_storage WHERE model_name = %s;"
@@ -291,12 +285,8 @@ def make_predictions(model, scaler, dates, connection):
     
     return future_data
 
-# Fetch base connection details from the environment
-base_conn = psycopg2.connect(dbname='postgres', user='moizibrar', password='postgres', host='localhost', port='5432')
-
 # Fetch database connection details from the db_config table
-db_config = get_db_config(base_conn)
-base_conn.close()
+db_config = get_db_config()
 
 # Establish database connection using fetched details
 connection = psycopg2.connect(dbname=db_config['db_name'], user=db_config['db_user'], password=db_config['db_password'], host=db_config['db_host'], port=int(db_config['db_port']))
@@ -373,6 +363,7 @@ BEGIN
     END IF;
 END;
 $$ LANGUAGE plpgsql;
+
 
 
 -- Function to predict using ARIMA model for a specific date
