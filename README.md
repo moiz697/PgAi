@@ -97,32 +97,6 @@ This guide provides step-by-step instructions to install PostgreSQL on various o
     createdb yourdatabase
     ```
 
-## Uninstallation
-
-### Ubuntu
-
-1. Remove PostgreSQL packages:
-    ```sh
-    sudo apt-get --purge remove postgresql postgresql-contrib
-    ```
-
-2. Remove the PostgreSQL data directory:
-    ```sh
-    sudo rm -rf /var/lib/postgresql
-    ```
-
-### macOS
-
-1. Stop the PostgreSQL service:
-    ```sh
-    brew services stop postgresql
-    ```
-
-2. Uninstall PostgreSQL:
-    ```sh
-    brew uninstall postgresql
-    ```
-
 ## Troubleshooting
 
 ### Common Issues
@@ -139,7 +113,7 @@ Feel free to contribute to this guide by submitting a pull request or opening an
 
 # pgai Extension for PostgreSQL
 
-pgai is a PostgreSQL extension that fetches predictive values from a trained model and places them in pseudo columns for future dates.
+**Postgres - AI Extension (PgAi):** Integrating predictive analytics into the database through "predictive queries".
 
 ## Installation Instructions
 
@@ -242,7 +216,15 @@ You can also write your own model and make changes in the `pgai--1.0` file.
 
 ## Usage
 
-Start using the pgai functions and features in your PostgreSQL queries.
+To use the pgai extension, follow these steps:
+
+1. **Load the Extension:**
+   ```sql
+   CREATE EXTENSION pgai;
+   ```
+
+2. **Run Predictive Queries:**
+   Use the provided models to perform predictive analytics directly within your PostgreSQL database. Refer to the `pgai` documentation for detailed examples and usage patterns.
 
 ## Contributing
 
