@@ -142,3 +142,60 @@ For more detailed troubleshooting, refer to the [PostgreSQL documentation](https
 ---
 
 Feel free to contribute to this guide by submitting a pull request or opening an issue on our GitHub repository.
+
+
+
+# pgai Extension for PostgreSQL
+
+pgai is a PostgreSQL extension that fetches predictive values from a trained model and places them in pseudo columns for future dates.
+
+## Installation Instructions
+
+1. **Prerequisites:**  
+   Ensure you have PostgreSQL installed. Download from the official [PostgreSQL website](https://www.postgresql.org/download/).
+
+2. **Cloning the Repository:**  
+   Clone the pgai repository and navigate to the directory:
+   ```bash
+   git clone https://github.com/yourusername/pgai.git
+   cd pgai
+   ```
+
+3. **Export PostgreSQL Path:**  
+   Export the PostgreSQL bin directory to your PATH. Replace `/path/to/postgres` with your PostgreSQL installation path:
+   ```bash
+   export PATH=/path/to/postgres/bin:$PATH
+   ```
+
+4. **Run PostgreSQL:**  
+   Ensure PostgreSQL is running:
+   ```bash
+   pg_ctl start
+   ```
+
+5. **Create the Extension:**  
+   Connect to your PostgreSQL instance and create the pgai extension:
+   ```sql
+   CREATE EXTENSION pgai;
+   ```
+
+## Usage
+
+Start using the pgai functions and features in your PostgreSQL queries.
+
+## Contributing
+
+We welcome contributions. Fork the repository and submit pull requests.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+For any questions or feedback, please open an issue on the GitHub repository or contact us at your.email@example.com.
+
+---
+
+Happy Predicting with pgai!
+
