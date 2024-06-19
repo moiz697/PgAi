@@ -1,3 +1,4 @@
+
 # PostgreSQL Installation Guide
 
 This guide provides step-by-step instructions to install PostgreSQL on various operating systems.
@@ -102,14 +103,12 @@ This guide provides step-by-step instructions to install PostgreSQL on various o
 
 1. Remove PostgreSQL packages:
     ```sh
-    sudo apt remove --purge postgresql postgresql-contrib
+    sudo apt-get --purge remove postgresql postgresql-contrib
     ```
 
-2. Remove data directories:
+2. Remove the PostgreSQL data directory:
     ```sh
-    sudo rm -rf /var/lib/postgresql/
-    sudo rm -rf /etc/postgresql/
-    sudo rm -rf /etc/postgresql-common/
+    sudo rm -rf /var/lib/postgresql
     ```
 
 ### macOS
@@ -122,11 +121,6 @@ This guide provides step-by-step instructions to install PostgreSQL on various o
 2. Uninstall PostgreSQL:
     ```sh
     brew uninstall postgresql
-    ```
-
-3. Remove data directories:
-    ```sh
-    rm -rf /usr/local/var/postgres
     ```
 
 ## Troubleshooting
@@ -142,8 +136,6 @@ For more detailed troubleshooting, refer to the [PostgreSQL documentation](https
 ---
 
 Feel free to contribute to this guide by submitting a pull request or opening an issue on our GitHub repository.
-
-
 
 # pgai Extension for PostgreSQL
 
@@ -198,4 +190,3 @@ For any questions or feedback, please open an issue on the GitHub repository or 
 ---
 
 Happy Predicting with pgai!
-
