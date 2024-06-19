@@ -243,15 +243,24 @@ The PgAi extension allows the integration of pseudo columns that fetch predictiv
 
 By adjusting the models and the SQL functions, you can adapt the PgAi extension to various domains. For any help regarding this, feel free to reach out to the team. We are happy to help you.
 
+## Why PgAi is Better
+
+1. **Integrated Predictive Analytics:** PgAi brings predictive analytics directly into PostgreSQL, eliminating the need for external tools or platforms. This seamless integration simplifies the workflow and enhances performance.
+2. **Flexibility:** The extension is designed to be adaptable to various types of data. Whether it's stock prices, weather forecasting, or sales projections, PgAi can be customized to meet specific requirements.
+3. **Efficiency:** By running predictive queries within the database, PgAi reduces data transfer overhead and speeds up the analysis process.
+4. **Ease of Use:** With simple SQL commands, users can perform complex predictive analytics, making advanced data science techniques accessible to a broader audience.
+
 ## Contributing
 
 We welcome contributions. Fork the repository and submit pull requests.
 
+## License
 
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Contact
 
-For any questions or feedback, please open an issue on the GitHub repository or contact us at abdul.moeiz2002@gmail.com.
+For any questions or feedback, please open an issue on the GitHub repository or contact us at your.email@example.com.
 
 **LinkedIn Profiles:**
 - [Abdul Moiez Ibrar](https://www.linkedin.com/in/abdul-moiez-ibrar-79167b104/)
