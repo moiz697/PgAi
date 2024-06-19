@@ -9,7 +9,6 @@ This guide provides step-by-step instructions to install PostgreSQL on various o
 - [Installation on Ubuntu](#installation-on-ubuntu)
 - [Installation on macOS](#installation-on-macos)
 - [Post-Installation Setup](#post-installation-setup)
-- [Uninstallation](#uninstallation)
 - [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
@@ -111,7 +110,7 @@ For more detailed troubleshooting, refer to the [PostgreSQL documentation](https
 
 Feel free to contribute to this guide by submitting a pull request or opening an issue on our GitHub repository.
 
-# pgai Extension for PostgreSQL
+# PgAi Extension for PostgreSQL
 
 ## Introduction
 
