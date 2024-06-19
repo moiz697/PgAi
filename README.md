@@ -153,25 +153,7 @@ pgai is a PostgreSQL extension that fetches predictive values from a trained mod
    cd pgai
    ```
 
-3. **Export PostgreSQL Path:**  
-   Export the PostgreSQL bin directory to your PATH. Replace `/path/to/postgres` with your PostgreSQL installation path:
-   ```bash
-   export PATH=/path/to/postgres/bin:$PATH
-   ```
-
-4. **Run PostgreSQL:**  
-   Ensure PostgreSQL is running:
-   ```bash
-   pg_ctl start
-   ```
-
-5. **Create the Extension:**  
-   Connect to your PostgreSQL instance and create the pgai extension:
-   ```sql
-   CREATE EXTENSION pgai;
-   ```
-
-6. **Create .env File:**  
+3. **Create .env File:**  
    Create a `.env` file in the root directory of your project with the following content:
    ```env
    PORT=5432
@@ -179,6 +161,84 @@ pgai is a PostgreSQL extension that fetches predictive values from a trained mod
    DATABASE=yourdatabase
    PASSWORD=yourpassword
    ```
+
+4. **Export PostgreSQL Path:**  
+   Export the PostgreSQL bin directory to your PATH. Replace `/path/to/postgres` with your PostgreSQL installation path:
+   ```bash
+   export PATH=/path/to/postgres/bin:$PATH
+   ```
+
+5. **Build and Install the Extension:**
+   ```bash
+   make && make install
+   ```
+
+6. **Run PostgreSQL:**  
+   Ensure PostgreSQL is running:
+   ```bash
+   pg_ctl start
+   ```
+
+7. **Create the Extension:**  
+   Connect to your PostgreSQL instance and create the pgai extension:
+   ```sql
+   CREATE EXTENSION pgai;
+   ```
+
+## Stock Data Instructions
+
+1. **Creating the Stock Table:**  
+   Create the `EXAMPLE_stock` table to store stock data:
+   ```sql
+   CREATE TABLE IF NOT EXISTS EXAMPLE_stock (
+       date DATE PRIMARY KEY,
+       open DOUBLE PRECISION,
+       high DOUBLE PRECISION,
+       low DOUBLE PRECISION,
+       close DOUBLE PRECISION,
+       adj_close DOUBLE PRECISION,
+       volume BIGINT
+   );
+   ```
+
+2. **Downloading Stocks from Yahoo Finance:**  
+   Visit [Yahoo Finance](https://finance.yahoo.com) to download stock data.
+
+3. **Importing Stock Data into PostgreSQL:**  
+   Use the `COPY` command to import the downloaded stock data into the PostgreSQL table:
+   ```sql
+   COPY EXAMPLE_stock(date, open, high, low, close, adj_close, volume)
+   FROM '/path/to/example.csv'
+   DELIMITER ','
+   CSV HEADER;
+   ```
+
+## Choosing a Model
+
+We provide three models:
+- LSTM
+- Prophet
+- ARIMA
+
+## Configuration
+
+1. **Add Configurations in PostgreSQL:**  
+   Create a table to store database connection details:
+   ```sql
+   CREATE TABLE IF NOT EXISTS db_config (
+       key TEXT PRIMARY KEY,
+       value TEXT NOT NULL
+   );
+
+   INSERT INTO db_config (key, value) VALUES
+       ('db_host', 'localhost'),
+       ('db_port', '5432'),
+       ('db_name', 'yourdatabase'),
+       ('db_user', 'yourusername'),
+       ('db_password', 'yourpassword');
+   ```
+
+You can also write your own model and make changes in the `pgai--1.0` file.
 
 ## Usage
 
