@@ -11,11 +11,14 @@ This project requires certain environment variables to be set in a `.env` file a
    touch .env
 
 # PostgreSQL configuration
+```bash
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=your_database_name
 DB_USER=your_database_user
 DB_PASSWORD=your_database_password
+
+
 -- Create the db_config table to store database connection details
 CREATE TABLE IF NOT EXISTS db_config (
     key TEXT PRIMARY KEY,
