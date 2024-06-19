@@ -233,6 +233,16 @@ To use the pgai extension, follow these steps:
 
 Refer to the `pgai` documentation for detailed examples and usage patterns.
 
+## Pseudo Columns and Applications
+
+The PgAi extension allows the integration of pseudo columns that fetch predictive values from trained models. While the primary example provided is stock data prediction, the same methodology can be applied to other datasets with minimal modifications. For instance, you can use PgAi for:
+
+- **Weather Forecasting:** Predict future weather conditions based on historical data.
+- **Sales Projections:** Forecast future sales using past sales data.
+- **Resource Allocation:** Predict future resource needs in logistics or supply chain management.
+
+By adjusting the models and the SQL functions, you can adapt the PgAi extension to various domains. For any help regarding this, feel free to reach out to the team. We are happy to help you.
+
 ## Contributing
 
 We welcome contributions. Fork the repository and submit pull requests.
