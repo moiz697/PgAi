@@ -254,13 +254,10 @@ By adjusting the models and the SQL functions, you can adapt the PgAi extension 
 
 We welcome contributions. Fork the repository and submit pull requests.
 
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Contact
 
-For any questions or feedback, please open an issue on the GitHub repository or contact us at your.email@example.com.
+For any questions or feedback, please open an issue on the GitHub repository or contact us at pgartificialintelligence@gmail.com.
 
 **LinkedIn Profiles:**
 - [Abdul Moiez Ibrar](https://www.linkedin.com/in/abdul-moiez-ibrar-79167b104/)
