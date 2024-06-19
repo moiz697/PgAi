@@ -113,7 +113,9 @@ Feel free to contribute to this guide by submitting a pull request or opening an
 
 # pgai Extension for PostgreSQL
 
-**Postgres - AI Extension (PgAi):** Integrating predictive analytics into the database through "predictive queries".
+## Introduction
+
+**Postgres - AI Extension (PgAi):** PgAi integrates predictive analytics directly into PostgreSQL, allowing users to execute "predictive queries" seamlessly. This extension brings the power of AI-driven predictions into the database, enabling data-driven decisions and advanced analytics without the need for external tools.
 
 ## Installation Instructions
 
@@ -224,7 +226,12 @@ To use the pgai extension, follow these steps:
    ```
 
 2. **Run Predictive Queries:**
-   Use the provided models to perform predictive analytics directly within your PostgreSQL database. Refer to the `pgai` documentation for detailed examples and usage patterns.
+   Use the provided models to perform predictive analytics directly within your PostgreSQL database. Example query:
+   ```sql
+   SELECT * FROM EXAMPLE_stock('2025-09-21');
+   ```
+
+Refer to the `pgai` documentation for detailed examples and usage patterns.
 
 ## Contributing
 
