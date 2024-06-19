@@ -171,6 +171,15 @@ pgai is a PostgreSQL extension that fetches predictive values from a trained mod
    CREATE EXTENSION pgai;
    ```
 
+6. **Create .env File:**  
+   Create a `.env` file in the root directory of your project with the following content:
+   ```env
+   PORT=5432
+   USERNAME=yourusername
+   DATABASE=yourdatabase
+   PASSWORD=yourpassword
+   ```
+
 ## Usage
 
 Start using the pgai functions and features in your PostgreSQL queries.
