@@ -149,7 +149,7 @@ pgai is a PostgreSQL extension that fetches predictive values from a trained mod
 2. **Cloning the Repository:**  
    Clone the pgai repository and navigate to the directory:
    ```bash
-   git clone https://github.com/yourusername/pgai.git
+   git clone git@github.com:moiz697/PgAi.git
    cd pgai
    ```
 
