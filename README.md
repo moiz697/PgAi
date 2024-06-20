@@ -190,10 +190,11 @@ Feel free to contribute to this guide by submitting a pull request or opening an
 
 ## Choosing a Model
 
-We provide three models:
+We provide Four models:
 - LSTM
 - Prophet
 - ARIMA
+- SARIMA
 
 ## Configuration
 
