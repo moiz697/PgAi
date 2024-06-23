@@ -1,16 +1,11 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split, RandomizedSearchCV, cross_val_score
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.metrics import mean_squared_error
 import pickle
 import psycopg2
 from psycopg2 import sql
 from dotenv import load_dotenv
 import os
 import matplotlib.pyplot as plt
-import numpy as np
-import scipy.stats as stats
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,120 +19,100 @@ db_params = {
     'port': os.getenv('DB_PORT')
 }
 
-# Load the data from the CSV file
-file_path = 'TSLA.csv'  # Make sure this path is correct
-data = pd.read_csv(file_path)
-
-# Preprocess the data
-data['Date'] = pd.to_datetime(data['Date'])  # Assuming the date column is named 'Date'
-data.set_index('Date', inplace=True)
-data.sort_index(inplace=True)
-
-# Feature engineering
-data['Year'] = data.index.year
-data['Month'] = data.index.month
-data['Day'] = data.index.day
-data['DayOfWeek'] = data.index.dayofweek
-
-# Adding rolling averages and other features
-data['MA10'] = data['Close'].rolling(window=10).mean()
-data['MA50'] = data['Close'].rolling(window=50).mean()
-data['MA200'] = data['Close'].rolling(window=200).mean()
-data['Volatility'] = data['Close'].rolling(window=10).std()
-
-# Drop rows with NaN values created by rolling features
-data.dropna(inplace=True)
-
-# Define the features and target
-X = data[['Year', 'Month', 'Day', 'DayOfWeek', 'MA10', 'MA50', 'MA200', 'Volatility']]
-y = data['Close'].values  # Assuming the close price column is named 'Close'
-
-# Split the data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Standardize the features
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
-
-# Hyperparameter tuning using RandomizedSearchCV
-param_dist = {
-    'n_estimators': stats.randint(50, 200),
-    'learning_rate': stats.uniform(0.01, 0.2),
-    'max_depth': stats.randint(3, 6)
-}
-
-random_search = RandomizedSearchCV(GradientBoostingRegressor(random_state=42), param_dist, n_iter=100, cv=5, scoring='neg_mean_squared_error', random_state=42)
-random_search.fit(X_train_scaled, y_train)
-
-# Best model
-best_model = random_search.best_estimator_
-print(f'Best Parameters: {random_search.best_params_}')
-
-# Cross-validation score
-cv_scores = cross_val_score(best_model, X_train_scaled, y_train, cv=5, scoring='neg_mean_squared_error')
-print(f'Cross-validation MSE: {-np.mean(cv_scores)}')
-
-# Track training and validation error for each iteration
-train_errors = []
-test_errors = []
-
-for y_train_pred in best_model.staged_predict(X_train_scaled):
-    train_errors.append(mean_squared_error(y_train, y_train_pred))
-
-for y_test_pred in best_model.staged_predict(X_test_scaled):
-    test_errors.append(mean_squared_error(y_test, y_test_pred))
-
-# Plot the training and validation error over the iterations
-plt.figure(figsize=(10, 6))
-plt.plot(np.arange(len(train_errors)) + 1, train_errors, label='Training Error')
-plt.plot(np.arange(len(test_errors)) + 1, test_errors, label='Validation Error')
-plt.xlabel('Number of Trees')
-plt.ylabel('Mean Squared Error')
-plt.title('Training and Validation Error Over Iterations')
-plt.legend()
-plt.show()
-
-# Train the best model on the entire training set
-best_model.fit(X_train_scaled, y_train)
-
-# Predict and evaluate
-y_pred = best_model.predict(X_test_scaled)
-mse = mean_squared_error(y_test, y_pred)
-print(f'Mean Squared Error: {mse}')
-
-# Save the trained model and scaler in PostgreSQL
-def save_model_and_scaler_to_postgres(model, scaler, model_name):
-    model_data = pickle.dumps(model)
-    scaler_data = pickle.dumps(scaler)
-
+# Function to load the model and scaler from PostgreSQL
+def load_model_and_scaler_from_postgres(model_name):
     conn = psycopg2.connect(**db_params)
     cursor = conn.cursor()
 
-    insert_query = sql.SQL("""
-        INSERT INTO tesla_model_storage (model_name, model_data, scaler_data)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (model_name)
-        DO UPDATE SET model_data = EXCLUDED.model_data, scaler_data = EXCLUDED.scaler_data;
+    select_query = sql.SQL("""
+        SELECT model_data, scaler_data
+        FROM tesla_model_storage
+        WHERE model_name = %s;
     """)
-    cursor.execute(insert_query, (model_name, psycopg2.Binary(model_data), psycopg2.Binary(scaler_data)))
-    conn.commit()
+    cursor.execute(select_query, (model_name,))
+    model_data, scaler_data = cursor.fetchone()
+
+    model = pickle.loads(model_data)
+    scaler = pickle.loads(scaler_data)
+
     cursor.close()
     conn.close()
+    
+    return model, scaler
 
-save_model_and_scaler_to_postgres(best_model, scaler, 'tesla_gradient_boosting_model')
+# Function to fetch historical data from PostgreSQL
+def fetch_historical_data():
+    conn = psycopg2.connect(**db_params)
+    query = "SELECT * FROM tesla_stock ORDER BY date ASC"
+    historical_data = pd.read_sql(query, conn, parse_dates=['date'])
+    conn.close()
+    historical_data.set_index('date', inplace=True)
+    return historical_data
 
-# Plot the results
+# Function to predict close prices for specific dates
+def predict_for_dates(dates, historical_data, model, scaler):
+    # Create a DataFrame for the input dates
+    date_df = pd.DataFrame({'date': pd.to_datetime(dates)})
+    date_df.set_index('date', inplace=True)
+
+    # Feature engineering on historical data
+    historical_data['Year'] = historical_data.index.year
+    historical_data['Month'] = historical_data.index.month
+    historical_data['Day'] = historical_data.index.day
+    historical_data['DayOfWeek'] = historical_data.index.dayofweek
+
+    # Adding rolling averages and other features
+    historical_data['MA10'] = historical_data['close'].rolling(window=10).mean()
+    historical_data['MA50'] = historical_data['close'].rolling(window=50).mean()
+    historical_data['MA200'] = historical_data['close'].rolling(window=200).mean()
+    historical_data['Volatility'] = historical_data['close'].rolling(window=10).std()
+
+    # Predicting for future dates
+    future_data = pd.DataFrame(index=date_df.index)
+    future_data['Year'] = future_data.index.year
+    future_data['Month'] = future_data.index.month
+    future_data['Day'] = future_data.index.day
+    future_data['DayOfWeek'] = future_data.index.dayofweek
+
+    # Assume the future rolling averages and volatility are same as the last available historical data
+    last_row = historical_data.iloc[-1]
+    future_data['MA10'] = last_row['MA10']
+    future_data['MA50'] = last_row['MA50']
+    future_data['MA200'] = last_row['MA200']
+    future_data['Volatility'] = last_row['Volatility']
+
+    # Define the features
+    X_dates = future_data[['Year', 'Month', 'Day', 'DayOfWeek', 'MA10', 'MA50', 'MA200', 'Volatility']]
+
+    # Standardize the features
+    X_dates_scaled = scaler.transform(X_dates)
+
+    # Predict the close prices
+    predictions = model.predict(X_dates_scaled)
+    
+    # Add predictions to DataFrame
+    future_data['Predicted_Close'] = predictions
+    
+    return future_data
+
+# Load the model and scaler
+model, scaler = load_model_and_scaler_from_postgres('tesla_gradient_boosting_model')
+
+# Fetch historical data from PostgreSQL
+historical_data = fetch_historical_data()
+
+# Example usage
+dates = ['2024-06-19', '2024-06-20', '2024-06-21']
+predictions_df = predict_for_dates(dates, historical_data, model, scaler)
+
+# Print the predictions
+print(predictions_df[['Predicted_Close']])
+
+# Plot the predictions
 plt.figure(figsize=(10, 6))
-plt.plot(data.index, data['Close'], label='Actual Close Prices')
-
-# Predict the entire data range for a smoother plot
-full_data_scaled = scaler.transform(X)
-full_predictions = best_model.predict(full_data_scaled)
-plt.plot(data.index, full_predictions, label='Predicted Close Prices', linestyle='--')
-
+plt.plot(predictions_df.index, predictions_df['Predicted_Close'], label='Predicted Close Prices', linestyle='--')
 plt.xlabel('Date')
-plt.ylabel('Close Price')
-plt.title('Actual vs Predicted Close Prices')
+plt.ylabel('Predicted Close Price')
+plt.title('Predicted Close Prices for Specific Dates')
 plt.legend()
 plt.show()
