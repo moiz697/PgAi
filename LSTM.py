@@ -20,15 +20,25 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_HOST = os.getenv('DB_HOST')
 DB_PORT = os.getenv('DB_PORT')
 
-# Load the dataset
-data = pd.read_csv('/Users/moizibrar/Downloads/AAPL1.csv')
+# Function to get data from PostgreSQL
+def get_data_from_db():
+    conn = psycopg2.connect(
+        dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT
+    )
+    query = "SELECT date, close FROM apple_stock"
+    df = pd.read_sql(query, conn)
+    conn.close()
+    return df
+
+# Load the dataset from PostgreSQL
+data = get_data_from_db()
 
 # Preprocessing the data
-data['Date'] = pd.to_datetime(data['Date'])
-data.set_index('Date', inplace=True)
+data['date'] = pd.to_datetime(data['date'])
+data.set_index('date', inplace=True)
 
 # Select only the 'Close' column
-close_data = data['Close'].values
+close_data = data['close'].values
 close_data = close_data.reshape(-1, 1)
 
 # Normalize the data
