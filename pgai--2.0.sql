@@ -48,3 +48,9 @@ except Exception as e:
     plpy.error(f"Error predicting with SARIMA model: {e}")
 
 $$ LANGUAGE plpython3u;
+
+
+
+
+
+
