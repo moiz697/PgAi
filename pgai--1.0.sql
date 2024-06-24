@@ -162,10 +162,10 @@ BEGIN
 
     -- Fetch stock data for the given date
     IF input_date_str::DATE > CURRENT_DATE THEN
-        -- Return only the predicted close value for future dates
+        -- Return the input date and the predicted close value for future dates
         RETURN QUERY
         SELECT
-            NULL::DATE as date,
+            input_date_str::DATE as date,
             NULL::DOUBLE PRECISION as open,
             NULL::DOUBLE PRECISION as high,
             NULL::DOUBLE PRECISION as low,
@@ -192,6 +192,7 @@ BEGIN
     END IF;
 END;
 $$ LANGUAGE plpgsql;
+
 
 CREATE OR REPLACE FUNCTION predict_stock_close_value_tesla(input_date_str TEXT)
 RETURNS FLOAT AS $$
@@ -333,10 +334,10 @@ BEGIN
 
     -- Fetch stock data for the given date
     IF input_date_str::DATE > CURRENT_DATE THEN
-        -- Return only the predicted close value for future dates
+        -- Return the input date and the predicted close value for future dates
         RETURN QUERY
         SELECT
-            NULL::DATE as date,
+            input_date_str::DATE as date,
             NULL::DOUBLE PRECISION as open,
             NULL::DOUBLE PRECISION as high,
             NULL::DOUBLE PRECISION as low,
@@ -363,6 +364,7 @@ BEGIN
     END IF;
 END;
 $$ LANGUAGE plpgsql;
+
 
 
 
@@ -465,10 +467,10 @@ BEGIN
 
     -- Fetch stock data for the given date
     IF input_date_str::DATE > CURRENT_DATE THEN
-        -- Return only the predicted close value for future dates
+        -- Return the input date and the predicted close value for future dates
         RETURN QUERY
         SELECT
-            NULL::DATE as date,
+            input_date_str::DATE as date,
             NULL::DOUBLE PRECISION as open,
             NULL::DOUBLE PRECISION as high,
             NULL::DOUBLE PRECISION as low,
