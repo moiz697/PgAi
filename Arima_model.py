@@ -74,11 +74,13 @@ model_name = 'sarimax_google_stock_model'
 
 # Create table if not exists
 create_table_query = """
-CREATE TABLE IF NOT EXISTS google_model_storage (
-    id SERIAL PRIMARY KEY,
-    model_name TEXT UNIQUE,
-    model_data BYTEA
-);
+ DROP TABLE IF EXISTS google_model_storage;
+        CREATE TABLE google_model_storage (
+            id SERIAL PRIMARY KEY,
+            model_name TEXT UNIQUE NOT NULL,
+            model_data BYTEA,
+            scaler_data BYTEA
+        );
 """
 cursor.execute(create_table_query)
 
