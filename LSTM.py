@@ -3,11 +3,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Dense, LSTM, Input
+from tensorflow.keras.layers import Dense, LSTM, Dropout, Input
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 import psycopg2
 import pickle
-import io
 from dotenv import load_dotenv
 import os
 
@@ -71,13 +70,15 @@ X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
 model = Sequential()
 model.add(Input(shape=(look_back, 1)))
 model.add(LSTM(100, return_sequences=True))
+model.add(Dropout(0.2))
 model.add(LSTM(100))
+model.add(Dropout(0.2))
 model.add(Dense(1))
 model.compile(loss='mean_squared_error', optimizer='adam')
 
 # Define the checkpoint and early stopping callbacks
 checkpoint = ModelCheckpoint('best_model.keras', monitor='val_loss', verbose=2, save_best_only=True, mode='min')
-early_stopping = EarlyStopping(monitor='val_loss', patience=7, verbose=1, restore_best_weights=True)
+early_stopping = EarlyStopping(monitor='val_loss', patience=5, verbose=1, restore_best_weights=True)
 
 # Train the model
 history = model.fit(X_train, y_train, epochs=100, batch_size=64, verbose=1, validation_data=(X_test, y_test),
@@ -104,6 +105,17 @@ def save_model_to_postgres(model, scaler, model_name):
     )
     cur = conn.cursor()
     
+    # Drop the table if it exists and create a new table
+    cur.execute("""
+        DROP TABLE IF EXISTS apple_model_storage;
+        CREATE TABLE apple_model_storage (
+            id SERIAL PRIMARY KEY,
+            model_name TEXT UNIQUE NOT NULL,
+            model_data BYTEA,
+            scaler_data BYTEA
+        );
+    """)
+    
     # Insert serialized model and scaler into the database
     cur.execute("""
         INSERT INTO apple_model_storage (model_name, model_data, scaler_data)
@@ -117,7 +129,7 @@ def save_model_to_postgres(model, scaler, model_name):
     conn.close()
 
 # Save the best model and scaler
-save_model_to_postgres(best_model, scaler, 'AAPL_LSTM_Model')
+save_model_to_postgres(best_model, scaler, 'apple_lstm_model')
 
 # Function to load the model and scaler from PostgreSQL
 def load_model_from_postgres(model_name):
@@ -129,7 +141,13 @@ def load_model_from_postgres(model_name):
     
     # Fetch serialized model and scaler from the database
     cur.execute("SELECT model_data, scaler_data FROM apple_model_storage WHERE model_name = %s", (model_name,))
-    model_data, scaler_data = cur.fetchone()
+    result = cur.fetchone()
+    if result is None:
+        cur.close()
+        conn.close()
+        raise ValueError(f"Model or scaler not found for model name: {model_name}")
+    
+    model_data, scaler_data = result
     
     # Deserialize model and scaler
     with open('temp_model.h5', 'wb') as model_file:
@@ -143,7 +161,7 @@ def load_model_from_postgres(model_name):
     return model, scaler
 
 # Load the model and scaler
-loaded_model, loaded_scaler = load_model_from_postgres('AAPL_LSTM_Model')
+loaded_model, loaded_scaler = load_model_from_postgres('apple_lstm_model')
 
 # Make predictions with the loaded model
 train_predict = loaded_model.predict(X_train)
