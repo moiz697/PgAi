@@ -10,6 +10,9 @@ This guide provides step-by-step instructions to install PostgreSQL on various o
 - [Installation on macOS](#installation-on-macos)
 - [Post-Installation Setup](#post-installation-setup)
 - [Troubleshooting](#troubleshooting)
+- [PgAi Extension for PostgreSQL](#pgai-extension-for-postgresql)
+- [Contributing](#contributing)
+- [Contact](#contact)
 
 ## Prerequisites
 
@@ -19,76 +22,82 @@ This guide provides step-by-step instructions to install PostgreSQL on various o
 ## Installation on Ubuntu
 
 1. Update the package list:
-    \`\`\`sh
+    ```sh
     sudo apt update
-    \`\`\`
+    ```
 
 2. Install PostgreSQL:
-    \`\`\`sh
+    ```sh
     sudo apt install postgresql postgresql-contrib
-    \`\`\`
+    ```
 
 3. Verify the installation:
-    \`\`\`sh
+    ```sh
     psql --version
-    \`\`\`
+    ```
 
 ## Installation on macOS
 
-1. Download PostgreSQL from the official website:
-    [PostgreSQL Download](https://www.postgresql.org/download/macosx/)
+1. Install Homebrew if you haven't already:
+    ```sh
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    ```
 
-2. Install the PostgreSQL application:
-    Follow the installation instructions provided on the website.
+2. Install PostgreSQL using Homebrew:
+    ```sh
+    brew install postgresql
+    ```
 
 3. Start the PostgreSQL service:
-    Use the PostgreSQL app to start the service.
+    ```sh
+    brew services start postgresql
+    ```
 
 4. Verify the installation:
-    \`\`\`sh
+    ```sh
     psql --version
-    \`\`\`
+    ```
 
 ## Post-Installation Setup
 
 ### Creating a New User
 
-1. Switch to the \`postgres\` user:
-    \`\`\`sh
+1. Switch to the `postgres` user:
+    ```sh
     sudo -i -u postgres
-    \`\`\`
+    ```
 
 2. Open the PostgreSQL prompt:
-    \`\`\`sh
+    ```sh
     psql
-    \`\`\`
+    ```
 
 3. Create a new user:
-    \`\`\`sql
+    ```sql
     CREATE USER yourusername WITH PASSWORD 'yourpassword';
-    \`\`\`
+    ```
 
 4. Grant privileges to the new user:
-    \`\`\`sql
+    ```sql
     ALTER USER yourusername WITH SUPERUSER;
-    \`\`\`
+    ```
 
 5. Exit the PostgreSQL prompt:
-    \`\`\`sh
+    ```sh
     \q
-    \`\`\`
+    ```
 
 ### Creating a New Database
 
-1. Switch to the \`postgres\` user if not already done:
-    \`\`\`sh
+1. Switch to the `postgres` user if not already done:
+    ```sh
     sudo -i -u postgres
-    \`\`\`
+    ```
 
 2. Create a new database:
-    \`\`\`sh
+    ```sh
     createdb yourdatabase
-    \`\`\`
+    ```
 
 ## Troubleshooting
 
@@ -104,6 +113,8 @@ For more detailed troubleshooting, refer to the [PostgreSQL documentation](https
 
 Feel free to contribute to this guide by submitting a pull request or opening an issue on our GitHub repository.
 
+---
+
 # PgAi Extension for PostgreSQL
 
 ## Introduction
@@ -117,48 +128,48 @@ Feel free to contribute to this guide by submitting a pull request or opening an
 
 2. **Cloning the Repository:**  
    Clone the pgai repository and navigate to the directory:
-   \`\`\`bash
+   ```bash
    git clone git@github.com:moiz697/PgAi.git
    cd pgai
-   \`\`\`
+   ```
 
 3. **Create .env File:**  
-   Create a \`.env\` file in the root directory of your project with the following content:
-   \`\`\`env
+   Create a `.env` file in the root directory of your project with the following content:
+   ```env
    PORT=5432
    USERNAME=yourusername
    DATABASE=yourdatabase
    PASSWORD=yourpassword
-   \`\`\`
+   ```
 
 4. **Export PostgreSQL Path:**  
-   Export the PostgreSQL bin directory to your PATH. Replace \`/path/to/postgres\` with your PostgreSQL installation path:
-   \`\`\`bash
+   Export the PostgreSQL bin directory to your PATH. Replace `/path/to/postgres` with your PostgreSQL installation path:
+   ```bash
    export PATH=/path/to/postgres/bin:$PATH
-   \`\`\`
+   ```
 
 5. **Build and Install the Extension:**
-   \`\`\`bash
+   ```bash
    make && make install
-   \`\`\`
+   ```
 
 6. **Run PostgreSQL:**  
    Ensure PostgreSQL is running:
-   \`\`\`bash
+   ```bash
    pg_ctl start
-   \`\`\`
+   ```
 
 7. **Create the Extension:**  
    Connect to your PostgreSQL instance and create the pgai extension:
-   \`\`\`sql
+   ```sql
    CREATE EXTENSION pgai;
-   \`\`\`
+   ```
 
 ## Stock Data Instructions
 
 1. **Creating the Stock Table:**  
-   Create the \`EXAMPLE_stock\` table to store stock data:
-   \`\`\`sql
+   Create the `EXAMPLE_stock` table to store stock data:
+   ```sql
    CREATE TABLE IF NOT EXISTS EXAMPLE_stock (
        date DATE PRIMARY KEY,
        open DOUBLE PRECISION,
@@ -168,23 +179,23 @@ Feel free to contribute to this guide by submitting a pull request or opening an
        adj_close DOUBLE PRECISION,
        volume BIGINT
    );
-   \`\`\`
+   ```
 
 2. **Downloading Stocks from Yahoo Finance:**  
    Visit [Yahoo Finance](https://finance.yahoo.com) to download stock data.
 
 3. **Importing Stock Data into PostgreSQL:**  
-   Use the \`COPY\` command to import the downloaded stock data into the PostgreSQL table:
-   \`\`\`sql
+   Use the `COPY` command to import the downloaded stock data into the PostgreSQL table:
+   ```sql
    COPY EXAMPLE_stock(date, open, high, low, close, adj_close, volume)
    FROM '/path/to/example.csv'
    DELIMITER ','
    CSV HEADER;
-   \`\`\`
+   ```
 
 ## Choosing a Model
 
-We provide Four models:
+We provide four models:
 - LSTM
 - Prophet
 - ARIMA
@@ -194,7 +205,7 @@ We provide Four models:
 
 1. **Add Configurations in PostgreSQL:**  
    Create a table to store database connection details:
-   \`\`\`sql
+   ```sql
    CREATE TABLE IF NOT EXISTS db_config (
        key TEXT PRIMARY KEY,
        value TEXT NOT NULL
@@ -206,26 +217,26 @@ We provide Four models:
        ('db_name', 'yourdatabase'),
        ('db_user', 'yourusername'),
        ('db_password', 'yourpassword');
-   \`\`\`
+   ```
 
-You can also write your own model and make changes in the \`pgai--1.0\` file.
+You can also write your own model and make changes in the `pgai--1.0` file.
 
 ## Usage
 
 To use the pgai extension, follow these steps:
 
 1. **Load the Extension:**
-   \`\`\`sql
+   ```sql
    CREATE EXTENSION pgai;
-   \`\`\`
+   ```
 
 2. **Run Predictive Queries:**
    Use the provided models to perform predictive analytics directly within your PostgreSQL database. Example query:
-   \`\`\`sql
+   ```sql
    SELECT * FROM EXAMPLE_stock('2025-09-21');
-   \`\`\`
+   ```
 
-Refer to the \`pgai\` documentation for detailed examples and usage patterns.
+Refer to the `pgai` documentation for detailed examples and usage patterns.
 
 ## Pseudo Columns and Applications
 
